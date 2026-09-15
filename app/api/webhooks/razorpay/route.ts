@@ -116,29 +116,28 @@ export async function POST(req: Request) {
             try {
               const oldNumber = order.internalOrderNumber;
               const newNumber = await assignUniversalOrderNumber(prisma);
-
-              // Race-condition guard: re-read the order to detect if another
-              // process (e.g. /checkout/complete) already promoted this order
-              // between our initial read and the mint. If so, discard our
-              // minted number (accept the sequence gap) and skip promotion.
-              const freshOrder = await prisma.order.findUnique({
-                where: { id: order.id },
-                select: { internalOrderNumber: true }
+              const previousNumbers = [order.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
+              const promoted = await prisma.order.updateMany({
+                where: {
+                  id: order.id,
+                  internalOrderNumber: oldNumber,
+                },
+                data: {
+                  internalOrderNumber: newNumber,
+                  previousOrderNumbers: previousNumbers || null,
+                  tags: (cleanedTags || '').replace(`zb-order-${oldNumber}`, `zb-order-${newNumber}`),
+                },
               });
-              if (freshOrder && freshOrder.internalOrderNumber && !isFailedPrefixNumber(freshOrder.internalOrderNumber)) {
+
+              if (promoted.count === 0) {
+                const freshOrder = await prisma.order.findUnique({
+                  where: { id: order.id },
+                  select: { internalOrderNumber: true }
+                });
                 paymentLog('info', 'webhook', {
-                  message: `Skipping promotion — another process already promoted ${oldNumber} → ${freshOrder.internalOrderNumber}. Discarding minted ${newNumber}.`
+                  message: `Skipping promotion — another process already promoted ${oldNumber} → ${freshOrder?.internalOrderNumber}. Discarding minted ${newNumber}.`
                 });
               } else {
-                const previousNumbers = [order.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
-                await prisma.order.update({
-                  where: { id: order.id },
-                  data: {
-                    internalOrderNumber: newNumber,
-                    previousOrderNumbers: previousNumbers || null,
-                    tags: (cleanedTags || '').replace(`zb-order-${oldNumber}`, `zb-order-${newNumber}`),
-                  },
-                });
                 // Update matching WebStoreOrder
                 await prisma.webStoreOrder.updateMany({
                   where: { orderNumber: oldNumber! },
@@ -149,7 +148,9 @@ export async function POST(req: Request) {
                   where: { orderNumber: oldNumber! },
                   data: { orderNumber: newNumber },
                 });
-                paymentLog('info', 'webhook', { message: `Promoted order ${oldNumber} → ${newNumber}` });
+                paymentLog('info', 'webhook', {
+                  message: `Promoted failed prefix order number ${oldNumber} → ${newNumber}`
+                });
               }
             } catch (promoteErr: any) {
               console.error(`[Razorpay Webhook] Failed to promote order number:`, promoteErr.message);
@@ -201,12 +202,17 @@ export async function POST(req: Request) {
           });
         }
 
-        // Fallback Shopify sync if not yet synced to Shopify
+        // Fallback Shopify sync if not yet synced to Shopify and not currently syncing
         const freshOrderForShopify = await prisma.order.findUnique({
           where: { id: order.id },
-          select: { shopifyOrderId: true }
+          select: { shopifyOrderId: true, shopifySyncStatus: true }
         });
-        if (!freshOrderForShopify?.shopifyOrderId || freshOrderForShopify.shopifyOrderId.startsWith('local_') || freshOrderForShopify.shopifyOrderId.startsWith('app_pending_')) {
+        if (
+          (!freshOrderForShopify?.shopifyOrderId ||
+            freshOrderForShopify.shopifyOrderId.startsWith('local_') ||
+            freshOrderForShopify.shopifyOrderId.startsWith('app_pending_')) &&
+          freshOrderForShopify?.shopifySyncStatus !== 'syncing'
+        ) {
           try {
             const { syncOrderToShopify } = await import('@/lib/services/shopifyOrderSyncService');
             await syncOrderToShopify(order.id);

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 import { cachedAnalytics } from '@/lib/analytics-cache';
+import { liveCartWhere } from '@/lib/cartConversion';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
@@ -23,6 +24,13 @@ async function handler() {
       async () => {
         const now = new Date();
         const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+        // FIX 4: Live cart measurement (15-min window, decoupled from date filter)
+        const liveSince = new Date(now.getTime() - 15 * 60 * 1000);
+        const [liveCartCount, liveCartValue] = await Promise.all([
+          prisma.cart.count({ where: liveCartWhere(liveSince) }),
+          prisma.cart.aggregate({ where: liveCartWhere(liveSince), _sum: { subtotal: true } }),
+        ]);
 
         // Active sessions (last 5 minutes)
         const activeSessions = await prisma.analyticsSession.findMany({
@@ -133,6 +141,8 @@ async function handler() {
             newVisitors,
             returningVisitors,
             unknownCount,
+            liveCarts: liveCartCount,
+            liveCartValue: Math.round((liveCartValue._sum.subtotal || 0) * 100) / 100,
           },
           breakdowns: {
             device: deviceBreakdown,
@@ -153,7 +163,7 @@ async function handler() {
   } catch (error: any) {
     console.error('[Analytics Realtime] Error:', error.message);
     return NextResponse.json({
-      summary: { totalActive: 0, webActive: 0, appActive: 0, newVisitors: 0, returningVisitors: 0, unknownCount: 0 },
+      summary: { totalActive: 0, webActive: 0, appActive: 0, newVisitors: 0, returningVisitors: 0, unknownCount: 0, liveCarts: 0, liveCartValue: 0 },
       breakdowns: { device: {}, browser: {}, os: {}, country: {} },
       visitorPoints: [],
       unknownCount: 0,

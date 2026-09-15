@@ -181,6 +181,85 @@ export const INDIAN_STATES = [
   "Ladakh", "Lakshadweep", "Puducherry"
 ];
 
+const STATE_ALIASES: Record<string, string> = {
+  // ISO-3166-2:IN codes
+  "ap": "Andhra Pradesh",
+  "ar": "Arunachal Pradesh",
+  "as": "Assam",
+  "br": "Bihar",
+  "cg": "Chhattisgarh",
+  "ct": "Chhattisgarh",
+  "ga": "Goa",
+  "gj": "Gujarat",
+  "hr": "Haryana",
+  "hp": "Himachal Pradesh",
+  "jh": "Jharkhand",
+  "ka": "Karnataka",
+  "kl": "Kerala",
+  "mp": "Madhya Pradesh",
+  "mh": "Maharashtra",
+  "mn": "Manipur",
+  "ml": "Meghalaya",
+  "mz": "Mizoram",
+  "nl": "Nagaland",
+  "od": "Odisha",
+  "or": "Odisha",
+  "pb": "Punjab",
+  "rj": "Rajasthan",
+  "sk": "Sikkim",
+  "tn": "Tamil Nadu",
+  "ts": "Telangana",
+  "tg": "Telangana",
+  "tr": "Tripura",
+  "up": "Uttar Pradesh",
+  "uk": "Uttarakhand",
+  "ut": "Uttarakhand",
+  "wb": "West Bengal",
+  "an": "Andaman and Nicobar Islands",
+  "ch": "Chandigarh",
+  "dh": "Dadra and Nagar Haveli and Daman and Diu",
+  "dd": "Dadra and Nagar Haveli and Daman and Diu",
+  "dl": "Delhi",
+  "jk": "Jammu and Kashmir",
+  "la": "Ladakh",
+  "ld": "Lakshadweep",
+  "py": "Puducherry",
+  // Common aliases
+  "nct of delhi": "Delhi",
+  "national capital territory of delhi": "Delhi",
+  "new delhi": "Delhi",
+  "orissa": "Odisha",
+  "pondicherry": "Puducherry",
+  "uttaranchal": "Uttarakhand",
+  "state of maharashtra": "Maharashtra",
+  "state of kerala": "Kerala",
+  "state of karnataka": "Karnataka",
+  "state of tamil nadu": "Tamil Nadu",
+  "state of gujarat": "Gujarat",
+};
+
+/**
+ * Normalizes any Indian state input (full name, abbreviation, or alias)
+ * to match an entry in INDIAN_STATES exactly.
+ */
+export function matchIndianState(stateInput?: string | null): string {
+  if (!stateInput) return "";
+  const clean = stateInput.trim().toLowerCase().replace(/^in-/i, "");
+  
+  if (STATE_ALIASES[clean]) {
+    return STATE_ALIASES[clean];
+  }
+
+  for (const s of INDIAN_STATES) {
+    const sLower = s.toLowerCase();
+    if (sLower === clean || clean.includes(sLower) || sLower.includes(clean)) {
+      return s;
+    }
+  }
+
+  return stateInput;
+}
+
 /**
  * Check if the given country string or code represents India.
  */

@@ -60,3 +60,6 @@ tsc_output*.txt
 # scratch
 /scratch/
 
+# Manufacturing module backup (moved to separate employee dashboard)
+/_manufacturing_backup/
+

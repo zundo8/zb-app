@@ -157,13 +157,15 @@ async function shopifyFetchAll<T>(endpoint: string, params?: Record<string, stri
   return allResults;
 }
 
-async function shopifyPost<T>(endpoint: string, body: unknown): Promise<T> {
+async function shopifyPost<T>(endpoint: string, body: unknown, customHeaders?: Record<string, string>): Promise<T> {
   const url = await adminUrl(endpoint);
+  const baseHeaders = await headers();
+  const requestHeaders = { ...baseHeaders, ...(customHeaders || {}) };
   const MAX = 4;
   for (let attempt = 0; attempt < MAX; attempt++) {
     const res = await fetch(url, {
       method: 'POST',
-      headers: await headers(),
+      headers: requestHeaders,
       body: JSON.stringify(body),
     });
 
@@ -306,7 +308,7 @@ export async function fetchOrder(orderId: string): Promise<ShopifyOrder> {
   return data.order;
 }
 
-export async function createOrder(order: any): Promise<ShopifyOrder> {
+export async function createOrder(order: any, options?: { idempotencyKey?: string }): Promise<ShopifyOrder> {
   const normalized = { ...order };
   if (normalized.email === '' || (normalized.email && !String(normalized.email).includes('@'))) {
     delete normalized.email;
@@ -330,8 +332,98 @@ export async function createOrder(order: any): Promise<ShopifyOrder> {
     const e164 = toE164(normalized.billing_address.phone);
     if (e164) normalized.billing_address.phone = e164;
   }
-  const data = await shopifyPost<{ order: ShopifyOrder }>('orders.json', { order: normalized });
+
+  // Idempotency support: source_identifier and Idempotency-Key header
+  const customHeaders: Record<string, string> = {};
+  if (options?.idempotencyKey) {
+    customHeaders['Idempotency-Key'] = options.idempotencyKey;
+    if (!normalized.source_identifier) {
+      normalized.source_identifier = options.idempotencyKey;
+    }
+  }
+
+  const data = await shopifyPost<{ order: ShopifyOrder }>('orders.json', { order: normalized }, customHeaders);
   return data.order;
+}
+
+/**
+ * Searches Shopify for an existing order by internal order number (e.g. ZB72044).
+ * Used as a pre-creation idempotency check to avoid double creation.
+ */
+export async function findShopifyOrderByInternalNumber(internalOrderNumber: string): Promise<ShopifyOrder | null> {
+  if (!internalOrderNumber) return null;
+  const cleanNumber = internalOrderNumber.trim();
+
+  // Try 1: REST API query by order name (with and without leading '#')
+  try {
+    const nameCandidates = [cleanNumber, `#${cleanNumber.replace(/^#/, '')}`];
+    for (const nameCandidate of nameCandidates) {
+      const data = await shopifyFetch<{ orders: ShopifyOrder[] }>('orders.json', {
+        name: nameCandidate,
+        status: 'any',
+        limit: '5',
+      });
+      if (data?.orders && data.orders.length > 0) {
+        const matched = data.orders.find((o) => {
+          const oName = (o.name || '').replace(/^#/, '').toUpperCase();
+          const target = cleanNumber.replace(/^#/, '').toUpperCase();
+          return (
+            oName === target ||
+            (o.tags || '').includes(`zb-order-${target}`) ||
+            (o.tags || '').includes(`zb_uid:${target}`)
+          );
+        });
+        if (matched) return matched;
+      }
+    }
+  } catch (restErr: any) {
+    console.warn(`[Shopify Admin] REST search for order ${cleanNumber} failed:`, restErr.message);
+  }
+
+  // Try 2: GraphQL query by name, tag, or source_identifier
+  try {
+    const target = cleanNumber.replace(/^#/, '');
+    const gqlQuery = `
+      query searchOrder($query: String!) {
+        orders(first: 5, query: $query) {
+          edges {
+            node {
+              id
+              name
+              legacyResourceId
+              tags
+            }
+          }
+        }
+      }
+    `;
+    const gqlRes = await shopifyGraphqlFetch<{
+      orders: {
+        edges: Array<{
+          node: {
+            id: string;
+            name: string;
+            legacyResourceId?: string;
+            tags: string[];
+          };
+        }>;
+      };
+    }>(gqlQuery, { query: `name:${target} OR tag:zb-order-${target} OR tag:zb_uid:${target}` });
+
+    const edges = gqlRes?.orders?.edges || [];
+    if (edges.length > 0) {
+      const node = edges[0].node;
+      const numericId = node.legacyResourceId || node.id.split('/').pop() || '';
+      return {
+        id: parseInt(numericId, 10),
+        name: node.name,
+      } as unknown as ShopifyOrder;
+    }
+  } catch (gqlErr: any) {
+    console.warn(`[Shopify Admin] GraphQL search for order ${cleanNumber} failed:`, gqlErr.message);
+  }
+
+  return null;
 }
 
 export async function cancelOrder(orderId: string, reason = 'customer'): Promise<any> {

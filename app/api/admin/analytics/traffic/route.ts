@@ -33,20 +33,25 @@ async function handler(req: Request) {
   const platformCondition = platform ? `AND platform = $3` : '';
   const queryArgs: any[] = platform ? [startDate, endDate, platform] : [startDate, endDate];
 
-  // Helper to normalize traffic source name
-  const normalizeSource = (utm: string | null, ref: string) => {
+  // Helper to normalize traffic source name and detect paid channels
+  const normalizeSource = (utm: string | null, ref: string): { name: string; isPaid: boolean } => {
     if (utm) {
-      const lower = utm.toLowerCase();
-      if (lower.includes('snapchat')) return 'Snapchat';
-      if (lower.includes('whatsapp')) return 'WhatsApp';
-      if (lower.includes('google')) return 'Google';
-      if (lower.includes('facebook') || lower === 'fb' || lower.includes('fb-')) return 'Facebook';
-      if (lower.includes('instagram') || lower === 'ig' || lower.includes('igshopping')) return 'Instagram';
-      if (lower.includes('twitter') || lower === 'x') return 'Twitter/X';
-      if (lower.includes('chatgpt') || lower.includes('perplexity')) return 'AI Referral';
-      return utm;
+      const lower = utm.toLowerCase().trim();
+      // Paid ad channels (FIX 7a)
+      if (lower === 'openai' || lower === 'chatgpt' || lower === 'openai_ads') return { name: 'OpenAI Ads', isPaid: true };
+      if (lower === 'meta' || lower === 'meta_ads') return { name: 'Meta Ads', isPaid: true };
+      if (lower === 'facebook' || lower === 'fb' || lower.startsWith('fb-') || lower.startsWith('fb_')) return { name: 'Meta Ads', isPaid: true };
+      if (lower === 'instagram' || lower === 'ig' || lower.includes('igshopping')) return { name: 'Meta Ads', isPaid: true };
+      if (lower === 'snapchat' || lower === 'snap' || lower === 'snapchat_ads') return { name: 'Snapchat Ads', isPaid: true };
+      if (lower === 'google' || lower === 'gads' || lower === 'adwords' || lower === 'google_ads') return { name: 'Google Ads', isPaid: true };
+      if (lower === 'tiktok' || lower === 'tiktok_ads') return { name: 'TikTok Ads', isPaid: true };
+      // Organic/other channels
+      if (lower.includes('perplexity')) return { name: 'Perplexity', isPaid: false };
+      if (lower.includes('whatsapp')) return { name: 'WhatsApp', isPaid: false };
+      if (lower.includes('twitter') || lower === 'x') return { name: 'Twitter/X', isPaid: false };
+      return { name: utm, isPaid: false };
     }
-    return ref;
+    return { name: ref, isPaid: false };
   };
 
   // Run fast decoupled aggregations in parallel without heavy 200k-row LEFT JOINs
@@ -107,10 +112,13 @@ async function handler(req: Request) {
     checkouts: number;
     orders: number;
     revenue: number;
+    isPaid: boolean;
   }>();
 
   for (const row of rawSessions) {
-    const src = normalizeSource(row.utm_source, row.ref_source);
+    const { name: src, isPaid } = normalizeSource(row.utm_source, row.ref_source);
+    // Also detect paid via utm_medium
+    const mediumIsPaid = isPaid || /^(cpc|paid|ppc|retargeting|display|sponsored)$/i.test(row.medium || '');
     const key = `${src}:::${row.medium}`;
     const existing = sourcesMap.get(key) || {
       source: src,
@@ -122,15 +130,16 @@ async function handler(req: Request) {
       checkouts: 0,
       orders: 0,
       revenue: 0,
+      isPaid: mediumIsPaid,
     };
     existing.sessions += Number(row.sessions || 0);
     existing.visitors += Number(row.visitors || 0);
     sourcesMap.set(key, existing);
   }
 
-  // Merge conversion events
   for (const row of rawConversions) {
-    const src = normalizeSource(row.utm_source, row.ref_source);
+    const { name: src, isPaid } = normalizeSource(row.utm_source, row.ref_source);
+    const mediumIsPaid = isPaid || /^(cpc|paid|ppc|retargeting|display|sponsored)$/i.test(row.medium || '');
     const key = `${src}:::${row.medium}`;
     const existing = sourcesMap.get(key) || {
       source: src,
@@ -142,6 +151,7 @@ async function handler(req: Request) {
       checkouts: 0,
       orders: 0,
       revenue: 0,
+      isPaid: mediumIsPaid,
     };
     existing.addToCart += Number(row.add_to_cart || 0);
     existing.checkouts += Number(row.checkouts || 0);
@@ -166,6 +176,7 @@ async function handler(req: Request) {
       conversionRate: src.sessions > 0
         ? Math.round((src.orders / src.sessions) * 100 * 100) / 100
         : 0,
+      isPaid: src.isPaid,
     }));
 
     const responseData = { sources: topSources };

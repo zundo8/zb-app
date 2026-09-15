@@ -3,9 +3,24 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
 import { withAdminApiGuard } from '@/lib/auth/admin-api-guard';
 import { cachedAnalytics } from '@/lib/analytics-cache';
+import { convertedCartWhere, abandonedCartWhere } from '@/lib/cartConversion';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 15;
+
+// ─── Inline pLimit: cap concurrent DB queries per route ────────
+// No external dependency needed. Limits how many promises run at once.
+function pLimit(concurrency: number) {
+  let active = 0;
+  const queue: (() => void)[] = [];
+  const next = () => { if (queue.length > 0 && active < concurrency) { active++; queue.shift()!(); } };
+  return <T>(fn: () => Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const run = () => fn().then(resolve, reject).finally(() => { active--; next(); });
+      queue.push(run);
+      next();
+    });
+}
 
 // ─── Canonical status sets (Item 1) ─────────────────────────────
 // Only these paymentStatus values count toward realized revenue & order counts.
@@ -91,10 +106,19 @@ async function handler(req: Request) {
     // ────────────────────────────────────────────────────────────────────
     // OPTIMIZATION: 2-Phase Execution to prevent pool exhaustion
     // Phase 1: Fast transactional model aggregates (Order, Cart, Logins)
+    //   → Run through pLimit(4) to cap at 4 concurrent DB queries
     // Phase 2: Targeted analytical queries on analytics tables
     // ────────────────────────────────────────────────────────────────────
 
     const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000);
+    const limit = pLimit(4);
+
+    // ── Shared cart predicates (FIX 3 — match abandoned-carts page) ──
+    const cartPlatformFilter = platform === 'app'
+      ? { source: 'mobile_app' }
+      : platform === 'web'
+        ? { source: 'webstore' }
+        : {};
 
     // ── PHASE 1: Quick Prisma aggregates (Orders, Carts, Logins, Customers) ──
     const [
@@ -114,18 +138,18 @@ async function handler(req: Request) {
       totalCarts,
       platformOrderBreakdown,
       activeVisitors,
-    ] = await Promise.all([
-      prisma.order.aggregate({
+    ]: any = await Promise.all([
+      limit(() => prisma.order.aggregate({
         where: { createdAt: dateFilter, ...realizedBaseWhere },
         _sum: { totalPrice: true, subtotalPrice: true, discountAmount: true },
         _count: true,
-      }),
-      prisma.order.aggregate({
+      })),
+      limit(() => prisma.order.aggregate({
         where: { createdAt: prevDateFilter, ...realizedBaseWhere },
         _sum: { totalPrice: true },
         _count: true,
-      }),
-      prisma.order.aggregate({
+      })),
+      limit(() => prisma.order.aggregate({
         where: {
           createdAt: dateFilter,
           refundStatus: { in: ['refunded', 'partial_refund'] },
@@ -133,34 +157,48 @@ async function handler(req: Request) {
         },
         _sum: { totalPrice: true },
         _count: true,
-      }),
-      prisma.order.groupBy({
+      })),
+      limit(() => prisma.order.groupBy({
         by: ['status'],
         where: { createdAt: dateFilter, ...orderTypeFilter },
         _count: true,
-      }),
-      prisma.order.groupBy({
+      })),
+      limit(() => prisma.order.groupBy({
         by: ['paymentMethod'],
         where: { createdAt: dateFilter, ...realizedBaseWhere },
         _count: true,
         _sum: { totalPrice: true },
-      }),
-      prisma.return.count({
+      })),
+      limit(() => prisma.return.count({
         where: { requestedAt: dateFilter, status: { in: ['APPROVED', 'COMPLETED'] } },
-      }),
-      prisma.appLogin.count({
+      })),
+      limit(() => prisma.appLogin.count({
         where: { createdAt: dateFilter, status: { in: ['LOGGED_IN', 'SUCCESS', 'ACCOUNT_CREATED'] } },
-      }),
-      prisma.appLogin.count({
+      })),
+      limit(() => prisma.appLogin.count({
         where: { createdAt: prevDateFilter, status: { in: ['LOGGED_IN', 'SUCCESS', 'ACCOUNT_CREATED'] } },
-      }),
-      prisma.customer.count({ where: { createdAt: dateFilter } }),
-      prisma.customer.count({ where: { createdAt: prevDateFilter } }),
-      prisma.cart.count({ where: { status: 'active', createdAt: dateFilter } }),
-      prisma.cart.count({ where: { status: 'abandoned', abandonedAt: dateFilter } }),
-      prisma.cart.count({ where: { status: 'converted', createdAt: dateFilter } }),
-      prisma.cart.count({ where: { createdAt: dateFilter } }),
-      prisma.order.groupBy({
+      })),
+      limit(() => prisma.customer.count({ where: { createdAt: dateFilter } })),
+      limit(() => prisma.customer.count({ where: { createdAt: prevDateFilter } })),
+      // FIX 3: Use shared cart conversion predicates (match abandoned-carts page)
+      limit(() => prisma.cart.count({
+        where: {
+          status: 'active',
+          convertedOrderId: null,
+          items: { some: {} },
+          lastActivityAt: { gte: new Date(now.getTime() - 30 * 60 * 1000) },
+          createdAt: dateFilter,
+          ...cartPlatformFilter,
+        },
+      })),
+      limit(() => prisma.cart.count({
+        where: abandonedCartWhere(dateFilter, new Date(now.getTime() - 30 * 60 * 1000), cartPlatformFilter),
+      })),
+      limit(() => prisma.cart.count({
+        where: convertedCartWhere(dateFilter, cartPlatformFilter),
+      })),
+      limit(() => prisma.cart.count({ where: { createdAt: dateFilter, status: { notIn: ['merged', 'expired'] }, ...cartPlatformFilter } })),
+      limit(() => prisma.order.groupBy({
         by: ['orderType'],
         where: {
           createdAt: dateFilter,
@@ -169,10 +207,10 @@ async function handler(req: Request) {
         },
         _count: true,
         _sum: { totalPrice: true },
-      }),
-      prisma.analyticsSession.count({
+      })),
+      limit(() => prisma.analyticsSession.count({
         where: { lastActiveAt: { gte: fiveMinAgo }, ...platformFilter },
-      }),
+      })),
     ]);
 
     // ── PHASE 2: Heavy Analytical Raw Queries (Only 5 concurrent connections) ──

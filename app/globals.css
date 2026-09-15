@@ -2130,3 +2130,16 @@ body.gallery-open .fixed.z-50 {
   top: 76px !important;
 }
 
+/* Google Maps Error Overlays & Autocomplete Error Cleanup */
+.gm-err-autocomplete {
+  background-image: none !important;
+}
+
+.gm-err-container,
+.gm-style-pbc,
+[data-gm-err-container] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/db";
+import prisma, { getPhoneLast10 } from "@/lib/db";
 import { getClientIP, lookupIpGeo } from "@/lib/ip-geo";
 import { getAppAuthFromRequest, resolveAuthCustomer } from "@/lib/appAuth";
 import { getServerSession } from "next-auth";
@@ -100,10 +100,59 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Find or create an active cart session
-    let cart = null;
+    // ── Identity-Merge Step: enforce single canonical active cart per identity ──
+    // Before find-or-create, load ALL live carts for this identity and merge
+    // duplicates so exactly one active cart remains per person.
+    const identityOr = buildCustomerIdentityOrClauses({
+      customerId: customerId || null,
+      email: email || customerEmail || null,
+      phone: phone || customerPhone || null,
+      sessionToken: guestId || null,
+    });
 
-    if (customerId) {
+    let mergedCanonicalCart: any = null;
+    if (identityOr.length > 0) {
+      const liveCarts = await prisma.cart.findMany({
+        where: {
+          status: { in: ["active", "abandoned"] },
+          convertedOrderId: null,
+          OR: identityOr,
+        },
+        orderBy: { lastActivityAt: "desc" },
+        include: { items: true },
+      });
+
+      if (liveCarts.length > 0) {
+        mergedCanonicalCart = liveCarts[0]; // newest activity = canonical
+
+        // Mark all other live carts as merged
+        const otherIds = liveCarts.slice(1).map((c: any) => c.id);
+        if (otherIds.length > 0) {
+          await prisma.cart.updateMany({
+            where: { id: { in: otherIds } },
+            data: {
+              status: "merged",
+              sessionToken: null,
+              ...(customerId ? { customerId } : {}),
+            },
+          });
+          console.log(`[Cart Sync] Merged ${otherIds.length} duplicate cart(s) into canonical ${mergedCanonicalCart.id}`);
+        }
+
+        // Ensure canonical cart has latest identity fields
+        if (customerId && mergedCanonicalCart.customerId !== customerId) {
+          mergedCanonicalCart = await prisma.cart.update({
+            where: { id: mergedCanonicalCart.id },
+            data: { customerId },
+          });
+        }
+      }
+    }
+
+    // 2. Find or create an active cart session
+    let cart: any = mergedCanonicalCart;
+
+    if (!cart && customerId) {
       // Find active cart for this customer
       cart = await prisma.cart.findFirst({
         where: { customerId: customerId, status: "active" }
@@ -115,13 +164,18 @@ export async function POST(req: Request) {
           where: { sessionToken: guestId }
         });
         if (existingSession) {
-          if (existingSession.status === "active" || existingSession.status === "abandoned" || existingSession.status === "expired") {
+          // 30-day guard: don't reactivate expired carts older than 30 days
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const isReactivatable = (existingSession.status === "active" || existingSession.status === "abandoned") ||
+            (existingSession.status === "expired" && existingSession.lastActivityAt > thirtyDaysAgo);
+
+          if (isReactivatable) {
             cart = await prisma.cart.update({
               where: { id: existingSession.id },
               data: { customerId: customerId, status: "active", abandonedAt: null }
             });
           } else {
-            // Converted or merged cart: release sessionToken so new cart can be created
+            // Converted, merged, or ancient expired cart: release sessionToken so new cart can be created
             await prisma.cart.update({
               where: { id: existingSession.id },
               data: { sessionToken: null }
@@ -147,13 +201,18 @@ export async function POST(req: Request) {
           }
         }
       }
-    } else if (guestId) {
+    } else if (!cart && guestId) {
       // Find guest cart by sessionToken
       const existingSession = await prisma.cart.findUnique({
         where: { sessionToken: guestId }
       });
       if (existingSession) {
-        if (existingSession.status === "active" || existingSession.status === "abandoned" || existingSession.status === "expired") {
+        // 30-day guard: don't reactivate expired carts older than 30 days
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const isReactivatable = (existingSession.status === "active" || existingSession.status === "abandoned") ||
+          (existingSession.status === "expired" && existingSession.lastActivityAt > thirtyDaysAgo);
+
+        if (isReactivatable) {
           cart = existingSession;
           if (existingSession.status !== "active") {
             await prisma.cart.update({
@@ -162,7 +221,7 @@ export async function POST(req: Request) {
             });
           }
         } else {
-          // Previously converted or merged cart: release sessionToken from old cart
+          // Previously converted, merged, or ancient expired cart: release sessionToken from old cart
           await prisma.cart.update({
             where: { id: existingSession.id },
             data: { sessionToken: null }
@@ -209,13 +268,15 @@ export async function POST(req: Request) {
 
       // Create new cart session safely
       try {
+        const cartPhone = phone || customerPhone || null;
         cart = await prisma.cart.create({
           data: {
             customerId: customerId || null,
             sessionToken: guestId || null,
             source: cartSource,
             status: "active",
-            phone: phone || customerPhone || null,
+            phone: cartPhone,
+            phoneLast10: getPhoneLast10(cartPhone),
             email: email || customerEmail || null,
             subtotal: calculatedSubtotal,
             lastActivityAt: new Date(),
@@ -234,13 +295,15 @@ export async function POST(req: Request) {
             where: { sessionToken: guestId },
             data: { sessionToken: null }
           });
+          const retryPhone = phone || customerPhone || null;
           cart = await prisma.cart.create({
             data: {
               customerId: customerId || null,
               sessionToken: guestId,
               source: cartSource,
               status: "active",
-              phone: phone || customerPhone || null,
+              phone: retryPhone,
+              phoneLast10: getPhoneLast10(retryPhone),
               email: email || customerEmail || null,
               subtotal: calculatedSubtotal,
               lastActivityAt: new Date(),
@@ -258,11 +321,13 @@ export async function POST(req: Request) {
       }
     } else {
       // Update existing cart details
+      const resolvedPhone = phone || customerPhone || cart.phone || undefined;
       const updateData: Record<string, any> = {
         updatedAt: new Date(),
         lastActivityAt: new Date(),
         subtotal: calculatedSubtotal,
-        phone: phone || customerPhone || cart.phone || undefined,
+        phone: resolvedPhone,
+        phoneLast10: getPhoneLast10(resolvedPhone || null),
         email: email || customerEmail || cart.email || undefined,
         source: cartSource,
         status: cart.status === "converted" ? "converted" : "active",

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { createOrder, createCustomer } from '@/lib/shopify-admin';
+import { syncOrderToShopify } from '@/lib/services/shopifyOrderSyncService';
 import { extractSizeFromVariant } from '@/lib/utils';
 
 /**
@@ -49,121 +49,19 @@ export async function POST(
           data: { status: 'approved' },
         });
 
-        // Parse shipping address
-        let shippingAddress: any = {};
-        try {
-          shippingAddress = mobileOrder.shippingAddress ? JSON.parse(mobileOrder.shippingAddress) : {};
-        } catch {
-          shippingAddress = {};
-        }
-
-        // Resolve Shopify customer (best-effort)
-        let shopifyCustomerId = mobileOrder.customer?.shopifyId;
-        if (!shopifyCustomerId || shopifyCustomerId.startsWith('temp_') || shopifyCustomerId.startsWith('google_') || shopifyCustomerId.startsWith('mobile_') || shopifyCustomerId.startsWith('otp_') || shopifyCustomerId.startsWith('csv_')) {
-          try {
-            const customerName = mobileOrder.customer?.name || shippingAddress?.name || 'App User';
-            const nameParts = String(customerName).split(' ');
-            const createdCustomer = await createCustomer({
-              first_name: nameParts[0] || 'App',
-              last_name: nameParts.slice(1).join(' ') || 'User',
-              email: mobileOrder.customer?.email || shippingAddress?.email || '',
-              phone: mobileOrder.customer?.phone || shippingAddress?.phone || '',
-              verified_email: true,
-              addresses: (shippingAddress?.address1 || shippingAddress?.line1)
-                ? [
-                    {
-                      address1: shippingAddress.address1 || shippingAddress.line1 || '',
-                      address2: shippingAddress.address2 || shippingAddress.line2 || '',
-                      city: shippingAddress.city || '',
-                      province: shippingAddress.province || shippingAddress.state || '',
-                      zip: shippingAddress.zip || shippingAddress.pincode || '',
-                      country: shippingAddress.country || 'India',
-                      default: true,
-                    },
-                  ]
-                : [],
-            });
-            shopifyCustomerId = String(createdCustomer.id);
-            if (mobileOrder.customer?.id) {
-              await prisma.customer.update({ where: { id: mobileOrder.customer.id }, data: { shopifyId: shopifyCustomerId } });
-            }
-          } catch (e) {
-            console.error('[Admin Detail Sync] Customer sync failed:', e);
-          }
-        }
-
-        // Build Shopify order payload
-        const shopifyOrderPayload: any = {
-          line_items: mobileOrder.items.map((item: any) => {
-            if (item.variantId && /^\d+$/.test(String(item.variantId))) {
-              return { variant_id: parseInt(String(item.variantId), 10), quantity: item.quantity };
-            }
-            const sku = item.sku || '';
-            const m = sku.match(/variant:(\d+)/i);
-            if (m?.[1]) return { variant_id: parseInt(m[1], 10), quantity: item.quantity };
-            return { title: item.title, quantity: item.quantity, price: item.price.toFixed(2), requires_shipping: true };
-          }),
-          email: mobileOrder.customer?.email || '',
-          financial_status: String(mobileOrder.paymentStatus || '').toLowerCase() === 'paid' ? 'paid' : 'pending',
-          tags: `mobile-app, zb-order-${mobileOrder.orderNumber}, ${String(mobileOrder.paymentMethod || '').toUpperCase() === 'COD' ? 'COD' : 'Prepaid, Razorpay'}, ${mobileOrder.paymentMethod || ''}, SyncedFromAdminDetail`.replace(/\s+/g, ' ').trim(),
-          note: `mobile-app | InternalOrderId: ${mobileOrder.id} | Payment: ${mobileOrder.paymentMethod || 'Unknown'}`,
-          currency: mobileOrder.currency || 'INR',
-        };
-
-        if (shopifyCustomerId && /^\d+$/.test(String(shopifyCustomerId))) {
-          shopifyOrderPayload.customer = { id: parseInt(String(shopifyCustomerId), 10) };
-        }
-
-        if (shippingAddress?.name || shippingAddress?.address1 || shippingAddress?.line1) {
-          const nameParts = String(shippingAddress.name || mobileOrder.customer?.name || '').split(' ');
-          shopifyOrderPayload.shipping_address = {
-            first_name: nameParts[0] || 'App',
-            last_name: nameParts.slice(1).join(' ') || 'User',
-            address1: shippingAddress.address1 || shippingAddress.line1 || '',
-            address2: shippingAddress.address2 || shippingAddress.line2 || '',
-            city: shippingAddress.city || '',
-            province: shippingAddress.province || shippingAddress.state || '',
-            zip: shippingAddress.zip || shippingAddress.pincode || '',
-            country: shippingAddress.country || 'India',
-            phone: shippingAddress.phone || mobileOrder.customer?.phone || '',
-          };
-          shopifyOrderPayload.billing_address = shopifyOrderPayload.shipping_address;
-        }
-
-        // Add transactions for prepaid orders so Shopify records the correct gateway
-        if (String(mobileOrder.paymentStatus || '').toLowerCase() === 'paid' && String(mobileOrder.paymentMethod || '').toUpperCase() !== 'COD') {
-          shopifyOrderPayload.transactions = [{
-            kind: "sale",
-            status: "success",
-            amount: parseFloat(String(mobileOrder.totalAmount || 0)).toFixed(2),
-            currency: mobileOrder.currency || "INR",
-            gateway: "razorpay",
-            authorization: mobileOrder.paymentId || null
-          }];
-        }
-
-        const createdOrder = await createOrder(shopifyOrderPayload);
-        const shopifyOrderId = String(createdOrder.id);
-
-        // Update mobile order
-        await prisma.mobileOrder.update({
-          where: { id: mobileOrder.id },
-          data: {
-            shopifyOrderId,
-            status: 'synced',
-            syncedAt: new Date(),
-            tags: `${mobileOrder.tags || ''}, synced`.replace(/\s+/g, ' ').trim(),
+        // Ensure corresponding standard local Order exists
+        let localOrder = await prisma.order.findFirst({
+          where: {
+            OR: [
+              { internalOrderNumber: mobileOrder.orderNumber },
+              ...(mobileOrder.shopifyOrderId ? [{ shopifyOrderId: mobileOrder.shopifyOrderId }] : []),
+            ],
           },
         });
 
-        // Create local standard Order
-        const existingOrder = await prisma.order.findUnique({
-          where: { shopifyOrderId }
-        });
-
-        if (!existingOrder) {
+        if (!localOrder) {
           const orderLineItems = mobileOrder.items.map((item: any, index: number) => ({
-            shopifyLineItemId: `synced_${createdOrder.id}_${index}_${Date.now()}`,
+            shopifyLineItemId: `synced_${mobileOrder.id}_${index}_${Date.now()}`,
             title: item.title,
             quantity: item.quantity,
             price: item.price,
@@ -171,10 +69,9 @@ export async function POST(
             productId: item.productId
           }));
 
-          await prisma.order.create({
+          localOrder = await prisma.order.create({
             data: {
               shopId: mobileOrder.customer.shopId,
-              shopifyOrderId,
               customerId: mobileOrder.customerId,
               status: 'approved',
               totalPrice: mobileOrder.totalPrice,
@@ -187,14 +84,36 @@ export async function POST(
               shippingAddress: mobileOrder.shippingAddress,
               billingAddress: mobileOrder.billingAddress,
               note: mobileOrder.note || null,
-              tags: `mobile-app, zb-order-${mobileOrder.orderNumber}, synced`,
-              createdAt: new Date(),
+              tags: `AppOrder, MobileApp, zb-order-${mobileOrder.orderNumber}`,
+              internalOrderNumber: mobileOrder.orderNumber,
+              orderType: 'APP',
+              shopifySyncStatus: 'pending',
               items: {
                 create: orderLineItems
               }
             }
           });
         }
+
+        // Delegate to single Shopify sync choke point
+        const syncRes = await syncOrderToShopify(localOrder.id, { preserveAppTags: true });
+        if (!syncRes.success) {
+          return NextResponse.json({ success: false, error: syncRes.error || 'Sync to Shopify failed' }, { status: 500 });
+        }
+
+        const shopifyOrderId = syncRes.shopifyOrderId!;
+        const shopifyOrderName = syncRes.shopifyOrderName;
+
+        // Update mobile order
+        await prisma.mobileOrder.update({
+          where: { id: mobileOrder.id },
+          data: {
+            shopifyOrderId,
+            status: 'synced',
+            syncedAt: new Date(),
+            tags: `${mobileOrder.tags || ''}, synced`.replace(/\s+/g, ' ').trim(),
+          },
+        });
 
         // Push notification
         try {
@@ -213,7 +132,7 @@ export async function POST(
         return NextResponse.json({
           success: true,
           shopifyOrderId,
-          shopifyOrderName: createdOrder.name,
+          shopifyOrderName,
         });
       }
     }
@@ -474,174 +393,19 @@ export async function POST(
       }
     }
 
-    // Parse shipping address
-    let shippingAddress: any = {};
-    try {
-      shippingAddress = order.shippingAddress ? JSON.parse(order.shippingAddress) : {};
-    } catch {
-      shippingAddress = {};
+    // Delegate Shopify order creation to the single choke point
+    const syncRes = await syncOrderToShopify(orderId, { preserveAppTags: true });
+    if (!syncRes.success) {
+      return NextResponse.json(
+        { success: false, error: syncRes.error || 'Sync failed' },
+        { status: 500 }
+      );
     }
-
-    // Resolve Shopify customer
-    let shopifyCustomerId = order.customer?.shopifyId;
-
-    if (!shopifyCustomerId || shopifyCustomerId.startsWith('temp_') || shopifyCustomerId.startsWith('google_')) {
-      // Create a new Shopify customer
-      try {
-        const customerName = order.customer?.name || 'App User';
-        const nameParts = customerName.split(' ');
-        const shopifyCustomer = await createCustomer({
-          first_name: nameParts[0] || 'App',
-          last_name: nameParts.slice(1).join(' ') || 'User',
-          email: order.customer?.email || '',
-          phone: order.customer?.phone || '',
-          verified_email: true,
-          addresses: shippingAddress.street ? [{
-            address1: shippingAddress.street || shippingAddress.address1 || '',
-            city: shippingAddress.city || '',
-            province: shippingAddress.state || shippingAddress.province || '',
-            zip: shippingAddress.zip || '',
-            country: shippingAddress.country || 'India',
-            default: true,
-          }] : [],
-        });
-
-        shopifyCustomerId = shopifyCustomer.id.toString();
-        
-        // Update local customer record
-        if (order.customer) {
-          await prisma.customer.update({
-            where: { id: order.customer.id },
-            data: { shopifyId: shopifyCustomerId },
-          });
-        }
-      } catch (e) {
-        console.error('[Sync] Shopify customer creation failed:', e);
-        // Continue without customer — Shopify will create one
-      }
-    }
-
-    const webStoreOrder = order.razorpayOrderId
-      ? await prisma.webStoreOrder.findFirst({ where: { razorpayOrderId: order.razorpayOrderId } })
-      : null;
-
-    const rawMethod = (order.paymentMethod || '').toLowerCase();
-    const isCodOrder = rawMethod === 'cod' || (order.tags || '').toLowerCase().includes('cod');
-    const codUpfrontFee = isCodOrder ? (webStoreOrder?.codUpfrontPaid ? Number(webStoreOrder.codUpfrontPaid) : 99) : 0;
-    const codBalanceDue = isCodOrder ? Math.max(0, order.totalPrice - codUpfrontFee) : 0;
-
-    // Build Shopify order payload
-    const shopifyOrderPayload: any = {
-      line_items: order.items.map((item: any) => {
-        // Mobile app stores Shopify variant id as `sku: variant:<id>` for later sync.
-        const sku = item.sku || '';
-        const m = sku.match(/variant:(\d+)/i);
-        if (m?.[1]) {
-          return {
-            variant_id: parseInt(m[1], 10),
-            quantity: item.quantity,
-          };
-        }
-
-        // Webstore checkout stores numeric variant ID or gid (e.g. gid://shopify/ProductVariant/123456)
-        const rawId = sku.split('/').pop() || '';
-        if (/^\d+$/.test(rawId)) {
-          return {
-            variant_id: parseInt(rawId, 10),
-            quantity: item.quantity,
-          };
-        }
-
-        // Fallback: create custom item (not ideal, but keeps admin unblocked).
-        return {
-          title: item.title,
-          quantity: item.quantity,
-          price: item.price.toFixed(2),
-          requires_shipping: true,
-        };
-      }),
-      email: order.customer?.email || '',
-      send_receipt: false,
-      send_fulfillment_receipt: false,
-      financial_status: isCodOrder ? 'partially_paid' : (order.paymentStatus === 'paid' ? 'paid' : 'pending'),
-      note: isCodOrder
-        ? `COD Order Synced from Admin Dashboard | Upfront Fee ₹${codUpfrontFee} paid via Razorpay (Payment ID: ${order.razorpayPaymentId || 'N/A'})`
-        : `Synced from Admin Dashboard | Payment: ${order.paymentMethod || 'Unknown'} | Razorpay Payment ID: ${order.razorpayPaymentId || 'N/A'} | InternalOrderId: ${order.id}`,
-      tags: `WebStoreOrder, WebStore, ${isCodOrder ? 'COD' : 'Prepaid, Razorpay'}, SyncedFromAdmin, zb-order-${order.internalOrderNumber}, ${order.tags || ''}`.replace(/\s+/g, ' ').trim(),
-      note_attributes: [
-        { name: 'internal_order_number', value: order.internalOrderNumber || '' },
-        { name: 'payment_method', value: isCodOrder ? 'COD' : 'PREPAID' },
-        { name: 'razorpay_payment_id', value: order.razorpayPaymentId || '' },
-        ...(isCodOrder ? [
-          { name: 'cod_upfront_fee', value: String(codUpfrontFee) },
-          { name: 'cod_balance_due', value: codBalanceDue.toFixed(2) }
-        ] : [])
-      ],
-      total_tax: 0,
-      currency: order.currency || 'INR',
-    };
-
-    // Add transactions so Shopify records the actual paid amount
-    if (isCodOrder) {
-      shopifyOrderPayload.transactions = [{
-        kind: "sale",
-        status: "success",
-        amount: codUpfrontFee.toFixed(2),
-        currency: order.currency || "INR",
-        gateway: "razorpay",
-        authorization: order.razorpayPaymentId || null
-      }];
-    } else if (order.paymentStatus === 'paid') {
-      shopifyOrderPayload.transactions = [{
-        kind: "sale",
-        status: "success",
-        amount: order.totalPrice.toFixed(2),
-        currency: order.currency || "INR",
-        gateway: "razorpay",
-        authorization: order.razorpayPaymentId || null
-      }];
-    }
-
-    // Add customer
-    if (shopifyCustomerId && !shopifyCustomerId.startsWith('temp_') && !shopifyCustomerId.startsWith('google_')) {
-      shopifyOrderPayload.customer = { id: parseInt(shopifyCustomerId) };
-    }
-
-    // Add shipping address
-    if (shippingAddress.name || shippingAddress.street || shippingAddress.address1) {
-      const nameParts = (shippingAddress.name || order.customer?.name || '').split(' ');
-      shopifyOrderPayload.shipping_address = {
-        first_name: nameParts[0] || 'App',
-        last_name: nameParts.slice(1).join(' ') || 'User',
-        address1: shippingAddress.street || shippingAddress.address1 || '',
-        city: shippingAddress.city || '',
-        province: shippingAddress.state || shippingAddress.province || '',
-        zip: shippingAddress.zip || '',
-        country: shippingAddress.country || 'India',
-      };
-      shopifyOrderPayload.billing_address = shopifyOrderPayload.shipping_address;
-    }
-
-    // Create order in Shopify
-    const shopifyOrder = await createOrder(shopifyOrderPayload);
-
-    // Update local order with Shopify ID, sync status, and approve it
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { 
-        shopifyOrderId: shopifyOrder.id.toString(),
-        shopifyOrderName: shopifyOrder.name,
-        shopifySyncStatus: 'synced',
-        shopifySyncError: null,
-        status: order.status === 'payment_pending' ? 'approved' : order.status,
-        tags: `AppOrder, MobileApp, Synced, ${order.paymentMethod || 'Razorpay'}`
-      },
-    });
 
     return NextResponse.json({ 
       success: true, 
-      shopifyOrderId: shopifyOrder.id.toString(),
-      shopifyOrderName: shopifyOrder.name,
+      shopifyOrderId: syncRes.shopifyOrderId,
+      shopifyOrderName: syncRes.shopifyOrderName,
     });
 
   } catch (error: any) {

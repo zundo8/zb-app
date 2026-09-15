@@ -1,30 +1,10 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { isOrderValidConverted } from "@/lib/cartValidation";
+import { validConvertedOrderClause } from "@/lib/cartConversion";
 import { buildCustomerIdentityOrClauses, areItemsIdentical } from "@/lib/cartCustomerMatch";
 
 export const dynamic = "force-dynamic";
-
-const validConvertedOrderClause = {
-  OR: [
-    {
-      convertedOrder: {
-        is: {
-          NOT: [
-            { status: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "draft", "voided"] } },
-            { paymentStatus: { in: ["failed", "FAILED", "payment_failed", "payment_pending", "cancelled", "CANCELLED", "voided"] } }
-          ],
-          OR: [
-            { paymentStatus: { in: ["paid", "cod_upfront_paid", "partially_paid", "refunded", "partially_refunded", "PAID", "SUCCESS", "success", "captured", "authorized", "approved"] } },
-            { status: { in: ["approved", "open", "active", "fulfilled", "delivered", "shipped", "completed", "processing", "processed", "CONFIRMED", "confirmed", "placed", "synced", "closed"] } }
-          ]
-        }
-      }
-    },
-    { status: "converted" },
-    { convertedOrderId: { not: null } }
-  ]
-};
 
 async function enrichCartsWithConversionData(carts: any[]) {
   if (!carts || carts.length === 0) {
@@ -307,10 +287,35 @@ export async function GET(req: Request) {
         };
       });
 
+    // FIX 5: De-dupe displayed rows by identity so each customer appears at most once.
+    // Uses the same identity key logic: customerId > phoneLast10 > email > cartId.
+    // Note: cross-page identity de-dupe is bounded by FIX 1's write-time merge which
+    // is the authoritative single-active-cart enforcement.
+    const identityKeyForCart = (c: any): string => {
+      if (c.customerId || c.customer?.id) return `cid:${c.customerId || c.customer?.id}`;
+      const ph = c.phoneLast10 || (c.phone ? c.phone.replace(/\D/g, '').slice(-10) : null) ||
+                 (c.customer?.phone ? c.customer.phone.replace(/\D/g, '').slice(-10) : null);
+      if (ph && ph.length >= 10) return `ph:${ph}`;
+      const em = c.email || c.customer?.email;
+      if (em) return `em:${em.trim().toLowerCase()}`;
+      return `cart:${c.id}`;
+    };
+
+    const seenIdentities = new Set<string>();
+    const dedupedCarts = mappedCarts.filter((cart: any) => {
+      const key = identityKeyForCart(cart);
+      if (seenIdentities.has(key)) return false;
+      seenIdentities.add(key);
+      return true;
+    });
+
+    // KPI counts (liveCount, abandonedCount, convertedCount, expiredCount) remain row-level
+    // from the DB. With FIX 1 enforcing single-active-cart at write time, these counts
+    // already represent people (not duplicate rows). No further de-dupe on KPIs needed.
     const total = statusFilter === "abandoned" ? abandonedCount : rawTotal;
 
     return NextResponse.json({
-      carts: mappedCarts,
+      carts: dedupedCarts,
       pagination: {
         total,
         page,

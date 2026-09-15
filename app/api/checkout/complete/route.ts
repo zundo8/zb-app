@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import prisma from "@/lib/db";
-import { createOrder, createCustomer, updateCustomer } from "@/lib/shopify-admin";
+import { createCustomer, updateCustomer } from "@/lib/shopify-admin";
+import { syncOrderToShopify } from "@/lib/services/shopifyOrderSyncService";
 import { resolveRazorpayCredentials } from "@/lib/razorpay-credentials";
 import { sendOrderConfirmationEmail, sendOrderCodConfirmationEmail } from "@/lib/services/orderEmailService";
 import { getServerSession } from "next-auth";
@@ -387,32 +388,52 @@ export async function POST(req: Request) {
         console.log(`[Checkout Complete] Reusing existing real order number: ${universalOrderNumber}`);
       } else if (isFailedPrefixNumber(oldNumber)) {
         // Pre-created order has a failed-prefix number → mint a new real number and promote NOW
+        let mintedNumber = '';
         try {
-          universalOrderNumber = await assignUniversalOrderNumber(prisma);
+          mintedNumber = await assignUniversalOrderNumber(prisma);
         } catch (seqErr: any) {
           console.error('[Checkout] Failed to generate universal order number:', seqErr.message);
-          universalOrderNumber = `ZB${Date.now().toString().slice(-8)}`;
+          mintedNumber = `ZB${Date.now().toString().slice(-8)}`;
         }
-        // Promote the pre-created order's number before Shopify creation
+        // Promote the pre-created order's number before Shopify creation using atomic updateMany
         const previousNumbers = [existingPreCreatedOrder.previousOrderNumbers, oldNumber].filter(Boolean).join(',');
-        await prisma.order.update({
-          where: { id: existingPreCreatedOrder.id },
+        const promoted = await prisma.order.updateMany({
+          where: {
+            id: existingPreCreatedOrder.id,
+            internalOrderNumber: oldNumber,
+          },
           data: {
-            internalOrderNumber: universalOrderNumber,
+            internalOrderNumber: mintedNumber,
             previousOrderNumbers: previousNumbers || null,
           }
         });
-        // Keep WebStoreOrder & MobileOrder in lockstep with the promoted number
-        await prisma.webStoreOrder.updateMany({
-          where: { orderNumber: oldNumber },
-          data: { orderNumber: universalOrderNumber },
-        });
-        await prisma.mobileOrder.updateMany({
-          where: { orderNumber: oldNumber },
-          data: { orderNumber: universalOrderNumber },
-        });
-        preCreatedWasPromoted = true;
-        console.log(`[Checkout Complete] Pre-promoted order ${oldNumber} → ${universalOrderNumber} (before Shopify creation)`);
+
+        if (promoted.count === 0) {
+          // Another concurrent process (e.g. Razorpay webhook) already promoted this order!
+          const fresh = await prisma.order.findUnique({
+            where: { id: existingPreCreatedOrder.id },
+            select: { internalOrderNumber: true }
+          });
+          if (fresh?.internalOrderNumber && !isFailedPrefixNumber(fresh.internalOrderNumber)) {
+            universalOrderNumber = fresh.internalOrderNumber;
+            console.log(`[Checkout Complete] Concurrent promotion detected; adopted winner number: ${universalOrderNumber}`);
+          } else {
+            universalOrderNumber = mintedNumber;
+          }
+        } else {
+          universalOrderNumber = mintedNumber;
+          // Keep WebStoreOrder & MobileOrder in lockstep with the promoted number
+          await prisma.webStoreOrder.updateMany({
+            where: { orderNumber: oldNumber },
+            data: { orderNumber: universalOrderNumber },
+          });
+          await prisma.mobileOrder.updateMany({
+            where: { orderNumber: oldNumber },
+            data: { orderNumber: universalOrderNumber },
+          });
+          preCreatedWasPromoted = true;
+          console.log(`[Checkout Complete] Pre-promoted order ${oldNumber} → ${universalOrderNumber}`);
+        }
       } else {
         // Pre-created order exists but has no number at all → mint a new one
         try {
@@ -432,193 +453,42 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Create Order in Shopify (using the FINAL settled universalOrderNumber)
-    const shopifyLineItems = items.map((item: any) => {
-      let variantId: number | undefined;
-      if (item.variantId) {
-        const rawId = String(item.variantId).split('/').pop() || '';
-        variantId = parseInt(rawId, 10);
-        if (isNaN(variantId)) variantId = undefined;
-      }
-
-      if (variantId) {
-        return { variant_id: variantId, quantity: item.quantity };
-      }
-      return {
-        title: item.title,
-        price: parseFloat(item.price).toFixed(2),
-        quantity: item.quantity,
-        requires_shipping: true,
-      };
-    });
-
-    const customerId = parseInt(shopifyCustomerId, 10);
-    const resolvedMethodTag = isFullStoreCredit ? "Store Credit" : paymentMethod === "COD" ? "COD" : "Prepaid, Razorpay";
-    const shopifyOrderData: any = {
-      line_items: shopifyLineItems,
-      ...(address.email && String(address.email).includes('@') ? { email: address.email } : {}),
-      send_receipt: false,
-      send_fulfillment_receipt: false,
-      billing_address: {
-        first_name: address.name.split(' ')[0],
-        last_name: address.name.split(' ').slice(1).join(' ') || '.',
-        address1: address.street,
-        city: address.city,
-        province: address.state,
-        zip: address.zip,
-        country: address.country,
-        phone: address.phone
-      },
-      shipping_address: {
-        first_name: address.name.split(' ')[0],
-        last_name: address.name.split(' ').slice(1).join(' ') || '.',
-        address1: address.street,
-        city: address.city,
-        province: address.state,
-        zip: address.zip,
-        country: address.country,
-        phone: address.phone
-      },
-      phone: address.phone,
-      financial_status: isFullStoreCredit ? "paid" : isCodOrder ? "partially_paid" : "paid",
-      note: isFullStoreCredit
-        ? `Paid 100% via Store Credit (₹${parsedStoreCredit}) from Web Store`
-        : isCodOrder
-        ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`
-        : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
-      tags: `WebStoreOrder, WebStore, ${resolvedMethodTag}, zb-order-${universalOrderNumber}`,
-      note_attributes: [
-        { name: 'internal_order_number', value: universalOrderNumber },
-        { name: 'payment_method', value: isFullStoreCredit ? 'STORE_CREDIT' : isCodOrder ? 'COD' : 'PREPAID' },
-        { name: 'razorpay_payment_id', value: razorpay?.razorpay_payment_id || '' },
-        { name: 'store_credit_amount', value: String(parsedStoreCredit) },
-        ...(isCodOrder ? [
-          { name: 'cod_upfront_fee', value: String(codFee || 99) },
-          { name: 'cod_balance_due', value: parseFloat(String(Math.max(0, Number(total) - (Number(codFee) || 99)))).toFixed(2) }
-        ] : [])
-      ],
-      total_tax: 0,
-      currency: "INR",
-      ...(finalCouponDiscount && Number(finalCouponDiscount) > 0 ? {
-        discount_codes: [
-          {
-            code: finalCouponCode || "DISCOUNT",
-            amount: parseFloat(String(finalCouponDiscount)).toFixed(2),
-            type: "fixed_amount"
-          }
-        ]
-      } : {})
-    };
-
-    if (isCodOrder) {
-      const upfrontFee = Number(codFee || 99);
-      shopifyOrderData.transactions = [{
-        kind: "sale",
-        status: "success",
-        amount: parseFloat(String(upfrontFee)).toFixed(2),
-        currency: "INR",
-        gateway: "razorpay",
-        authorization: razorpay?.razorpay_payment_id || `cod_upfront_${Date.now()}`
-      }];
-    } else {
-      shopifyOrderData.transactions = [{
-        kind: "sale",
-        status: "success",
-        amount: parseFloat(total).toFixed(2),
-        currency: "INR",
-        gateway: isFullStoreCredit ? "store_credit" : "razorpay",
-        authorization: razorpay?.razorpay_payment_id || `store_credit_${Date.now()}`
-      }];
-    }
-
-    if (!isNaN(customerId) && customerId > 0) {
-      shopifyOrderData.customer = { id: customerId };
-    }
-
-    let shopifyOrderId = null;
-    let sOrder: any = null;
-    try {
-      sOrder = await createOrder(shopifyOrderData);
-      shopifyOrderId = sOrder.id.toString();
-    } catch (shopifyErr: any) {
-      console.error('[Checkout] Shopify order creation failed (will sync later):', shopifyErr.message);
-    }
-
     // Resolve products from DB
     const resolvedItems = [];
-    if (sOrder && sOrder.line_items) {
-      for (const li of sOrder.line_items) {
-        let dbProductId = null;
-        let image = null;
-        if (li.product_id) {
-          const shopifyProdId = String(li.product_id);
-          const byShopifyId = await prisma.product.findUnique({
-            where: { shopifyProductId: shopifyProdId }
-          });
-          if (byShopifyId) {
-            dbProductId = byShopifyId.id;
-            image = byShopifyId.featuredImage;
-          }
-        }
-        if (!image) {
-          const matchingRequestItem = items.find((item: any) => {
-            const liVariantId = String(li.variant_id);
-            const reqVariantId = item.variantId ? String(item.variantId).split('/').pop() : '';
-            return liVariantId === reqVariantId || li.title === item.title;
-          });
-          if (matchingRequestItem) {
-            image = matchingRequestItem.image || null;
-          }
-        }
-        resolvedItems.push({
-          shopifyLineItemId: String(li.id),
-          productId: dbProductId,
-          title: li.title,
-          quantity: li.quantity,
-          price: li.price ? parseFloat(li.price) : 0,
-          sku: li.sku || null,
-          image: image
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      let dbProductId = null;
+      let image = item.image || null;
+      if (item.productId) {
+        const cleanId = String(item.productId);
+        const byShopifyId = await prisma.product.findUnique({
+          where: { shopifyProductId: cleanId }
         });
-      }
-    } else {
-      for (let index = 0; index < items.length; index++) {
-        const item = items[index];
-        let dbProductId = null;
-        let image = item.image || null;
-        if (item.productId) {
-          const cleanId = String(item.productId);
-          const byShopifyId = await prisma.product.findUnique({
-            where: { shopifyProductId: cleanId }
+        if (byShopifyId) {
+          dbProductId = byShopifyId.id;
+          if (!image) image = byShopifyId.featuredImage;
+        } else {
+          const byCuid = await prisma.product.findUnique({
+            where: { id: cleanId }
           });
-          if (byShopifyId) {
-            dbProductId = byShopifyId.id;
-            if (!image) image = byShopifyId.featuredImage;
-          } else {
-            const byCuid = await prisma.product.findUnique({
-              where: { id: cleanId }
-            });
-            if (byCuid) {
-              dbProductId = byCuid.id;
-              if (!image) image = byCuid.featuredImage;
-            }
+          if (byCuid) {
+            dbProductId = byCuid.id;
+            if (!image) image = byCuid.featuredImage;
           }
         }
-        resolvedItems.push({
-          shopifyLineItemId: `web_${Date.now()}_${index}_${item.productId || item.variantId || 'item'}`,
-          productId: dbProductId,
-          title: item.title,
-          quantity: item.quantity,
-          price: parseFloat(item.price || '0'),
-          sku: item.variantId || item.productId || null,
-          image: image
-        });
       }
+      resolvedItems.push({
+        shopifyLineItemId: `web_${Date.now()}_${index}_${item.productId || item.variantId || 'item'}`,
+        productId: dbProductId,
+        title: item.title,
+        quantity: item.quantity,
+        price: parseFloat(item.price || '0'),
+        sku: item.variantId || item.productId || null,
+        image: image
+      });
     }
 
     // 4. Update existing pre-created Order OR Create Order in local DB
-    // NOTE: existingPreCreatedOrder was already looked up and promotion was
-    // already done before Shopify creation (BUG 1 fix). Re-fetch to get latest
-    // state in case another process (webhook) modified it concurrently.
     if (existingPreCreatedOrder) {
       // Race-condition guard: re-read the order to detect if another process
       // (e.g. Razorpay webhook) already assigned a different real number
@@ -626,10 +496,8 @@ export async function POST(req: Request) {
         where: { id: existingPreCreatedOrder.id }
       });
       if (freshOrder && freshOrder.internalOrderNumber && !isFailedPrefixNumber(freshOrder.internalOrderNumber)) {
-        // Another process may have promoted this order — adopt its number
         const adoptedNumber = freshOrder.internalOrderNumber;
         if (adoptedNumber !== universalOrderNumber) {
-          // Sync WebStoreOrder/MobileOrder from the old prefix to the adopted number
           const oldPrefixNumber = existingPreCreatedOrder.internalOrderNumber;
           if (oldPrefixNumber && isFailedPrefixNumber(oldPrefixNumber)) {
             await prisma.webStoreOrder.updateMany({
@@ -653,9 +521,7 @@ export async function POST(req: Request) {
       // Recalculate correct total: subtotal - discount - storeCredit
       const correctedTotal = Math.max(0, Number(subtotal || 0) - Number(finalCouponDiscount || 0) - parsedStoreCredit);
 
-      // Build the update data — number promotion was already done above
       const updateData: any = {
-        shopifyOrderId: shopifyOrderId,
         status: isCodOrder ? "open" : "approved",
         paymentStatus: isCodOrder ? "cod_upfront_paid" : "paid",
         razorpayPaymentId: razorpay?.razorpay_payment_id || null,
@@ -673,9 +539,6 @@ export async function POST(req: Request) {
           : isCodOrder
           ? `COD Order from Web Store ${parsedStoreCredit > 0 ? `(₹${parsedStoreCredit} Store Credit applied)` : ''} - ₹${codFee || 99} upfront fee paid via Razorpay`
           : `Paid via Razorpay ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} from Web Store (Payment ID: ${razorpay?.razorpay_payment_id || 'N/A'})`,
-        shopifyOrderName: sOrder ? sOrder.name : null,
-        shopifySyncStatus: sOrder ? 'synced' : 'failed',
-        shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
         internalOrderNumber: universalOrderNumber,
       };
 
@@ -688,7 +551,7 @@ export async function POST(req: Request) {
       localOrder = await prisma.order.create({
         data: {
           shopId: shop.id,
-          shopifyOrderId: shopifyOrderId,
+          shopifyOrderId: null,
           customerId: localCustomer.id,
           status: isCodOrder ? "open" : "approved",
           totalPrice: total,
@@ -710,9 +573,8 @@ export async function POST(req: Request) {
           discountCode: finalCouponCode || null,
           discountAmount: Number(finalCouponDiscount) || 0,
           internalOrderNumber: universalOrderNumber,
-          shopifyOrderName: sOrder ? sOrder.name : null,
-          shopifySyncStatus: sOrder ? 'synced' : 'failed',
-          shopifySyncError: sOrder ? null : 'Shopify order creation failed at checkout complete',
+          shopifySyncStatus: 'pending',
+          shopifySyncError: null,
           items: {
             create: resolvedItems.map((item: any) => ({
               shopifyLineItemId: item.shopifyLineItemId,
@@ -726,6 +588,17 @@ export async function POST(req: Request) {
           }
         }
       });
+    }
+
+    // ─── ONE AND ONLY ONE SHOPIFY-CREATE CHOKE POINT (FIX 1) ───
+    try {
+      const syncRes = await syncOrderToShopify(localOrder.id);
+      if (syncRes.success && syncRes.shopifyOrderId) {
+        localOrder.shopifyOrderId = syncRes.shopifyOrderId;
+        localOrder.shopifyOrderName = syncRes.shopifyOrderName || null;
+      }
+    } catch (syncErr: any) {
+      console.error('[Checkout Complete] Shopify order sync error (will be retried):', syncErr.message);
     }
 
     // ─── DEBIT STORE CREDITS FROM CUSTOMER WALLET ───
@@ -975,7 +848,7 @@ export async function POST(req: Request) {
       const wsCodUpfrontPaymentId = isCodOrder ? (razorpay?.razorpay_payment_id || null) : null;
       const wsNotes = isFullStoreCredit
         ? `Paid 100% via Store Credit (₹${parsedStoreCredit})`
-        : `${isCodOrder ? `COD Order (₹${wsCodUpfrontPaid} upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`;
+        : `${isCodOrder ? `COD Order (₹${wsCodUpfrontPaid} upfront fee paid)` : "Paid via Razorpay"} ${parsedStoreCredit > 0 ? `+ ₹${parsedStoreCredit} Store Credit` : ''} | Shopify: ${localOrder.shopifyOrderId || 'Pending'} | Local: ${localOrder.id}`;
 
       if (existingWebStoreOrder) {
         webStoreOrder = await prisma.webStoreOrder.update({
@@ -1052,7 +925,7 @@ export async function POST(req: Request) {
           });
         }
       }
-      console.log(`[Checkout] Successfully synced WebStoreOrder for localOrder: ${localOrder.id}, shopifyOrderId: ${shopifyOrderId}`);
+      console.log(`[Checkout] Successfully synced WebStoreOrder for localOrder: ${localOrder.id}, shopifyOrderId: ${localOrder.shopifyOrderId}`);
     } catch (webStoreOrderErr: any) {
       console.error("[Checkout] Failed to sync WebStoreOrder in DB:", webStoreOrderErr.message);
     }

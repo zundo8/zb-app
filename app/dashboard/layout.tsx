@@ -30,8 +30,6 @@ import {
   Building2,
   Star,
   Layers2,
-  ArrowDownUp,
-  ClipboardList,
   Coins,
   Truck,
   X,
@@ -47,10 +45,6 @@ import {
   Wallet,
   Bot,
   GraduationCap,
-  Palette,
-  Factory,
-  FlaskConical,
-  BookOpen,
   Database,
   ShieldCheck,
   Search,
@@ -265,20 +259,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Zica AI - Training", href: "/dashboard/ai/training", icon: GraduationCap, module: 'AI_SERVICES' },
   ];
 
-  const manufacturingNav = [
-    { name: "Mfg Hub", href: "/dashboard/manufacturing", icon: Factory, module: 'MANUFACTURING' },
-    { name: "Design Assignments", href: "/dashboard/manufacturing/designs", icon: Palette, module: 'MANUFACTURING' },
-    { name: "Sample Queue", href: "/dashboard/manufacturing/samples", icon: FlaskConical, module: 'MANUFACTURING' },
-    { name: "Pending Tasks", href: "/dashboard/manufacturing/tasks", icon: ClipboardList, module: 'MANUFACTURING' },
-    { name: "Production Tracker", href: "/dashboard/manufacturing/production", icon: TrendingUp, module: 'MANUFACTURING' },
-    { name: "Fabric Inventory", href: "/dashboard/manufacturing/fabric", icon: Layers2, module: 'MANUFACTURING' },
-    { name: "Fabric Movement", href: "/dashboard/manufacturing/movement", icon: ArrowDownUp, module: 'MANUFACTURING' },
-    { name: "Vendors", href: "/dashboard/manufacturing/vendors", icon: Building2, module: 'MANUFACTURING' },
-    { name: "Cost Ledger", href: "/dashboard/manufacturing/costs", icon: Coins, module: 'MANUFACTURING' },
-    { name: "Knowledge Base", href: "/dashboard/manufacturing/knowledge-base", icon: BookOpen, module: 'MANUFACTURING' },
-    { name: "Team Performance", href: "/dashboard/manufacturing/employees", icon: Users, module: 'MANUFACTURING' },
-    { name: "Mfg Reports", href: "/dashboard/manufacturing/reports", icon: BarChart3, module: 'MANUFACTURING' },
-  ];
+
 
   const marketingNav = [
     { name: "SEO Dashboard", href: "/dashboard/marketing/seo", icon: Search, module: 'MARKETING' },
@@ -600,21 +581,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             )}
 
-            {filterNav(manufacturingNav).length > 0 && (
-              <div>
-                <div className="mb-2 px-5 flex items-center gap-2">
-                  <Building2 className="w-3 h-3 text-foreground/40" strokeWidth={2} />
-                  <span className="text-[10px] font-semibold text-foreground/40 uppercase tracking-wider font-inter">
-                    Manufacturing
-                  </span>
-                </div>
-                <div className="space-y-0.5">
-                  {filterNav(manufacturingNav).map((item) => (
-                    <NavLink key={item.name} item={item} />
-                  ))}
-                </div>
-              </div>
-            )}
+
 
             {filterNav(systemNav).length > 0 && (
               <div>

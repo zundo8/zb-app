@@ -12,7 +12,8 @@ import { NextResponse, NextRequest } from "next/server";
 import crypto from "crypto";
 import prisma from "@/lib/db";
 import { shipOrder } from "@/lib/services/logistics";
-import { createOrder, createCustomer } from "@/lib/shopify-admin";
+import { createCustomer } from "@/lib/shopify-admin";
+import { syncOrderToShopify } from "@/lib/services/shopifyOrderSyncService";
 
 export const dynamic = "force-dynamic";
 
@@ -239,87 +240,14 @@ export async function POST(req: NextRequest) {
                   }
                 }
 
-                const shopifyLineItems = order.items.map((item: any) => {
-                  let variantId: number | undefined;
-                  if (item.sku) {
-                    const rawId = String(item.sku).split('/').pop() || '';
-                    variantId = parseInt(rawId, 10);
-                    if (isNaN(variantId)) variantId = undefined;
-                  }
-                  if (variantId) {
-                    return { variant_id: variantId, quantity: item.quantity };
-                  }
-                  return {
-                    title: item.title,
-                    price: parseFloat(String(item.price)).toFixed(2),
-                    quantity: item.quantity,
-                    requires_shipping: true,
-                  };
-                });
-
-                const shopifyOrderData: any = {
-                  line_items: shopifyLineItems,
-                  financial_status: "paid",
-                  note: `Paid via Razorpay Link from WhatsApp Cart Recovery (Payment ID: ${razorpayPaymentId})`,
-                  tags: `WebStoreOrder, WebStore, Prepaid, Razorpay, CartRecovery, zb-order-${order.internalOrderNumber}`,
-                  note_attributes: [
-                    { name: 'internal_order_number', value: order.internalOrderNumber || "" }
-                  ],
-                  total_tax: 0,
-                  currency: "INR",
-                  transactions: [{
-                    kind: "sale",
-                    status: "success",
-                    amount: parseFloat(String(order.totalPrice || 0)).toFixed(2),
-                    currency: "INR",
-                    gateway: "razorpay",
-                    authorization: razorpayPaymentId || null
-                  }]
-                };
-
-                if (shopifyCustomerId && !isNaN(parseInt(shopifyCustomerId)) && parseInt(shopifyCustomerId) > 0) {
-                  shopifyOrderData.customer = { id: parseInt(shopifyCustomerId) };
+                const syncRes = await syncOrderToShopify(order.id, { extraTags: ['CartRecovery'] });
+                if (syncRes.success) {
+                  console.log(`[Razorpay Webhook] Successfully synced Shopify order ${syncRes.shopifyOrderId} for recovered cart`);
+                } else {
+                  console.error(`[Razorpay Webhook] Failed to sync recovered order to Shopify:`, syncRes.error);
                 }
-
-                if (addressToUse) {
-                  const shopifyAddress = {
-                    first_name: addressToUse.name?.split(' ')[0] || "",
-                    last_name: addressToUse.name?.split(' ').slice(1).join(' ') || ".",
-                    address1: addressToUse.street || "",
-                    city: addressToUse.city || "",
-                    province: addressToUse.state || "",
-                    zip: addressToUse.zip || "",
-                    country: addressToUse.country || "India",
-                    phone: addressToUse.phone || ""
-                  };
-                  shopifyOrderData.shipping_address = shopifyAddress;
-                  shopifyOrderData.billing_address = shopifyAddress;
-                  shopifyOrderData.phone = addressToUse.phone;
-                }
-
-                const sOrder = await createOrder(shopifyOrderData);
-                const newShopifyOrderId = sOrder.id.toString();
-
-                await prisma.order.update({
-                  where: { id: order.id },
-                  data: {
-                    shopifyOrderId: newShopifyOrderId,
-                    shopifyOrderName: sOrder.name,
-                    shopifySyncStatus: 'synced',
-                    shopifySyncError: null,
-                  }
-                });
-
-                console.log(`[Razorpay Webhook] Successfully created Shopify order ${newShopifyOrderId} for recovered cart`);
               } catch (syncErr: any) {
                 console.error(`[Razorpay Webhook] Failed to sync recovered order to Shopify:`, syncErr.message);
-                await prisma.order.update({
-                  where: { id: order.id },
-                  data: {
-                    shopifySyncStatus: 'failed',
-                    shopifySyncError: syncErr.message,
-                  }
-                });
               }
             }
 

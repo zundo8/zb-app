@@ -185,6 +185,37 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: `Exchange must pass QC before creating replacement order. Current status: ${exchangeRequest.status}` }, { status: 400 });
     }
 
+    // Atomic claim: prevent concurrent order creation attempts
+    const claim = await prisma.exchangeRequest.updateMany({
+      where: {
+        id,
+        newShopifyOrderId: null,
+        status: { in: ["qc_passed", "received", "approved"] }
+      },
+      data: {
+        status: "creating_order"
+      }
+    });
+
+    if (claim.count === 0) {
+      const current = await prisma.exchangeRequest.findUnique({ where: { id } });
+      if (current?.status === "new_order_created" && current.newShopifyOrderId) {
+        const existingOrder = await prisma.order.findUnique({
+          where: { shopifyOrderId: current.newShopifyOrderId }
+        });
+        return NextResponse.json({
+          success: true,
+          message: "Order already created for this exchange",
+          shopifyOrderId: current.newShopifyOrderId,
+          localOrderId: existingOrder?.id || null,
+          exchangeRequest: current
+        });
+      }
+      return NextResponse.json({
+        error: `Exchange order creation is already in progress or exchange is not ready (status: ${current?.status || "unknown"}).`
+      }, { status: 409 });
+    }
+
     const priceDiff = exchangeRequest.priceDifference || 0;
     const isCod = exchangeRequest.settlementPreference === "COD_ON_DELIVERY" && priceDiff > 0;
     const isNegativeDiff = priceDiff < 0;
@@ -287,6 +318,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       total_discounts: totalDiscount,
       send_receipt: true,
       send_fulfillment_receipt: true,
+      source_identifier: `exchange-${exchangeRequest.id}`,
     };
 
     if (customer?.shopifyId) {
@@ -309,17 +341,28 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     let shopifyOrderId: string | null = null;
 
     try {
-      shopifyOrder = await createOrder(shopifyOrderPayload);
+      shopifyOrder = await createOrder(shopifyOrderPayload, {
+        idempotencyKey: `exchange-${exchangeRequest.id}`
+      });
       shopifyOrderId = shopifyOrder?.id?.toString() || shopifyOrder?.name || null;
       console.log(`✅ Shopify exchange order created: ${shopifyOrderId} (Name: ${shopifyOrder?.name})`);
     } catch (shopifyError: any) {
       console.error("⚠️ Shopify order creation failed:", shopifyError.message);
+      // Rollback claimed status
+      await prisma.exchangeRequest.update({
+        where: { id },
+        data: { status: exchangeRequest.status }
+      });
       return NextResponse.json({
         error: `Shopify order creation failed: ${shopifyError.message}. Please verify product availability before retrying.`
       }, { status: 502 });
     }
 
     if (!shopifyOrderId) {
+      await prisma.exchangeRequest.update({
+        where: { id },
+        data: { status: exchangeRequest.status }
+      });
       return NextResponse.json({ error: "Shopify order creation returned no order ID." }, { status: 500 });
     }
 

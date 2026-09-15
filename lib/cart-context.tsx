@@ -7,7 +7,9 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
+import { useSession } from "next-auth/react";
 import { trackStorefrontEvent } from "@/lib/track-client";
 import { trackAddToCart as zbTrackAddToCart, trackRemoveFromCart as zbTrackRemoveFromCart } from "@/lib/analytics-tracker";
 import { enrichSessionWithGeolocation } from "@/lib/geolocation-enrichment";
@@ -36,6 +38,7 @@ interface CartContextType {
   update: (id: string, quantity: number) => void;
   clear: () => void;
   loadFromDB: (dbItems: CartItem[]) => void;
+  isLoaded: boolean;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -47,20 +50,78 @@ const STORAGE_KEY = "zb_cart_v1";
 // ─── Provider ────────────────────────────────────────────
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const { status } = useSession();
+  const [items, setItems] = useState<CartItem[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [isLoaded, setIsLoaded] = useState(false);
+  const restoredRef = useRef(false);
 
-  // Load from localStorage on mount
+  // Ensure items are synced on client mount
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setItems(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setItems(parsed);
+        }
+      }
     } catch {}
+    setIsLoaded(true);
   }, []);
 
-  // Persist to localStorage on change
+  // Persist to localStorage on change (only after client mount)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+    if (!isLoaded) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch {}
+  }, [items, isLoaded]);
+
+  // ── Login restore: one-time merge from DB when user authenticates ──
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (status !== "authenticated" || restoredRef.current) return;
+    restoredRef.current = true;
+
+    const restoreFromDB = async () => {
+      try {
+        const res = await fetch("/api/cart/me");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && Array.isArray(data.items) && data.items.length > 0) {
+          const dbItems: CartItem[] = data.items;
+          // Merge DB items with local items — keep higher quantity (Math.max),
+          // never sum, to prevent inflation on repeated logins
+          setItems((prev) => {
+            const map = new Map(prev.map((i) => [i.id, { ...i }]));
+            for (const di of dbItems) {
+              const ex = map.get(di.id);
+              if (ex) {
+                ex.quantity = Math.max(ex.quantity, di.quantity);
+              } else {
+                map.set(di.id, di);
+              }
+            }
+            return Array.from(map.values());
+          });
+        }
+      } catch (err) {
+        console.error("Cart login restore failed:", err);
+      }
+    };
+
+    restoreFromDB();
+  }, [status]);
 
   // Synchronize cart with backend on updates (debounced)
   useEffect(() => {
@@ -123,10 +184,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // Hold sync until login restore has completed — prevents overwriting
+    // the DB cart with stale local-only data before merge finishes
+    if (status === "authenticated" && !restoredRef.current) return;
+
     // Fast 300ms debounce for near-instant real-time cart tracking in admin dashboard
     const timer = setTimeout(syncCartWithBackend, 300);
     return () => clearTimeout(timer);
-  }, [items]);
+  }, [items, status]);
 
   const add = useCallback((item: Omit<CartItem, "id" | "quantity">) => {
     const id = `${item.productId}_${item.variantId}_${item.size || "one-size"}`;
@@ -197,9 +262,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     clearGuestPII();
   }, []);
 
-  // Replace local cart state with items fetched from the database
+  // Replace local cart state with items fetched from the database (merges with existing)
   const loadFromDB = useCallback((dbItems: CartItem[]) => {
-    setItems(dbItems);
+    setItems((prev) => {
+      if (prev.length === 0) return dbItems;
+      const map = new Map(prev.map((i) => [i.id, { ...i }]));
+      for (const di of dbItems) {
+        const ex = map.get(di.id);
+        if (ex) {
+          ex.quantity = Math.max(ex.quantity, di.quantity);
+        } else {
+          map.set(di.id, di);
+        }
+      }
+      return Array.from(map.values());
+    });
   }, []);
 
   const count = useMemo(() => items.reduce((s, i) => s + i.quantity, 0), [items]);
@@ -209,7 +286,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <CartContext.Provider value={{ items, count, subtotal, add, remove, update, clear, loadFromDB }}>
+    <CartContext.Provider value={{ items, count, subtotal, add, remove, update, clear, loadFromDB, isLoaded }}>
       {children}
     </CartContext.Provider>
   );

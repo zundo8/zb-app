@@ -129,6 +129,36 @@ const DEV_FALLBACK_GEO: IpGeoResult = {
   isDevFallback: true,
 };
 
+async function fetchFromGeoJs(ip?: string, signal?: AbortSignal): Promise<IpGeoResult | null> {
+  try {
+    const url = ip && !isPrivateIP(ip)
+      ? `https://get.geojs.io/v1/ip/geo/${encodeURIComponent(ip)}.json`
+      : `https://get.geojs.io/v1/ip/geo.json`;
+    const res = await fetch(url, { signal });
+    if (res.ok) {
+      const json = await res.json();
+      if (json && (json.country_code || json.country)) {
+        const lat = parseFloat(json.latitude);
+        const lng = parseFloat(json.longitude);
+        const rawZip = json.postal_code || null;
+        const cleanZip = rawZip && rawZip !== '0' && rawZip !== 'null' ? String(rawZip).trim() : null;
+        return {
+          countryCode: String(json.country_code || 'IN').toUpperCase().slice(0, 2),
+          country: json.country || 'India',
+          region: json.region || null,
+          city: json.city || null,
+          zip: cleanZip,
+          lat: !isNaN(lat) ? lat : null,
+          lng: !isNaN(lng) ? lng : null,
+        };
+      }
+    }
+  } catch {
+    // Fail quietly to next provider
+  }
+  return null;
+}
+
 async function fetchFromIpWhoIs(ip: string, signal: AbortSignal): Promise<IpGeoResult | null> {
   const url = `https://ipwho.is/${encodeURIComponent(ip)}`;
   const res = await fetch(url, { signal });
@@ -202,9 +232,16 @@ export async function lookupIpGeo(ip: string, req?: Request): Promise<IpGeoResul
     if (edgeGeo) return edgeGeo;
   }
 
-  // 2. Handle private / local IPs
+  // 2. Handle private / local IPs: attempt real public IP lookup first for accurate local testing
   if (isPrivateIP(ip)) {
-    return process.env.NODE_ENV !== 'production' ? DEV_FALLBACK_GEO : DEV_FALLBACK_GEO;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const publicGeo = await fetchFromGeoJs(undefined, controller.signal);
+      clearTimeout(timeoutId);
+      if (publicGeo) return { ...publicGeo, isDevFallback: true };
+    } catch {}
+    return DEV_FALLBACK_GEO;
   }
 
   // 3. Check cache
@@ -225,8 +262,9 @@ export async function lookupIpGeo(ip: string, req?: Request): Promise<IpGeoResul
   const apiKey = process.env.IP_GEO_API_KEY || '';
   let result: IpGeoResult | null = null;
 
-  // 4. Multi-provider fallback chain: ipwho.is -> ip-api.com -> ipapi.co
+  // 4. Multi-provider fallback chain: GeoJS -> ipwho.is -> ip-api.com -> ipapi.co
   const providers = [
+    (signal: AbortSignal) => fetchFromGeoJs(ip, signal),
     (signal: AbortSignal) => fetchFromIpWhoIs(ip, signal),
     (signal: AbortSignal) => fetchFromIpApi(ip, signal),
     (signal: AbortSignal) => fetchFromIpApiCo(ip, apiKey, signal),
@@ -246,8 +284,8 @@ export async function lookupIpGeo(ip: string, req?: Request): Promise<IpGeoResul
     }
   }
 
-  // Fallback to dev geo if all providers fail during dev
-  if (!result && process.env.NODE_ENV !== 'production') {
+  // Fallback to dev geo if all providers fail
+  if (!result) {
     result = DEV_FALLBACK_GEO;
   }
 

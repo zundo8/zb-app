@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAppAuthFromRequest } from '@/lib/appAuth';
 import prisma from '@/lib/db';
-import { createOrder, createCustomer } from '@/lib/shopify-admin';
+import { syncOrderToShopify } from '@/lib/services/shopifyOrderSyncService';
 import { extractNumericId } from '@/lib/utils';
 import { assignUniversalOrderNumber, assignFailedOrderNumber, isFailedPrefixNumber } from '@/lib/orderNumber';
 
@@ -192,99 +192,9 @@ export async function POST(req: Request) {
     let finalShopifyOrderId = existingOrder?.shopifyOrderId || null;
     let finalTags = existingOrder?.tags || tags;
     let isSyncedNow = false;
-    let shopifyOrderRes: any = null;
 
-    // --- SHOPIFY SYNC FOR PAID OR COD (If we want COD in shopify too) ---
-    const shouldSyncNow = (paymentStatus === 'paid') && (!existingOrder?.shopifyOrderId || existingOrder.shopifyOrderId.startsWith('#'));
-
-    if (shouldSyncNow) {
-        try {
-            // Ensure customer exists in Shopify
-            let shopifyCustomerId = customer.shopifyId;
-            if (!shopifyCustomerId || shopifyCustomerId.startsWith('GUEST_') || shopifyCustomerId.startsWith('temp_')) {
-                const nameParts = String(customer.name || 'App User').split(' ');
-                try {
-                  const createdCustomer = await createCustomer({
-                      first_name: nameParts[0] || 'App',
-                      last_name: nameParts.slice(1).join(' ') || 'User',
-                      email: customer.email || `${Date.now()}@guest.zicabella.com`,
-                      phone: customerPhone || customer.phone || '',
-                      verified_email: true
-                  });
-                  shopifyCustomerId = String(createdCustomer.id);
-                  await prisma.customer.update({ where: { id: customer.id }, data: { shopifyId: shopifyCustomerId } });
-                } catch (ce: any) {
-                  console.error('[App API] Customer creation failed:', ce.message);
-                }
-            }
-
-            // Sync Order to Shopify
-            const shopifyOrderPayload: any = {
-                line_items: lineItems.map((li: any) => {
-                    let vid = extractNumericId(li.variantId || li.variant_id);
-                    if (!vid && typeof li.sku === 'string' && li.sku.startsWith('variant:')) {
-                      vid = li.sku.split(':')[1];
-                    }
-                    return {
-                        variant_id: vid ? parseInt(vid, 10) : null,
-                        quantity: Number(li.quantity || 1),
-                        title: li.name || li.title,
-                        price: li.price ? String(li.price) : undefined,
-                    };
-                }).filter((li: any) => li.variant_id && !isNaN(li.variant_id)),
-                email: customerEmail || customer.email || shippingAddress?.email || '',
-                financial_status: paymentStatus === 'paid' ? 'paid' : 'pending',
-                tags: `${tags}, ${paymentMethod === 'COD' ? 'COD' : 'Prepaid, Razorpay'}, synced, zb-order-${orderNumber}`,
-                note: note,
-                note_attributes: [
-                    { name: 'internal_order_number', value: orderNumber }
-                ],
-                currency: 'INR',
-                customer: shopifyCustomerId && !shopifyCustomerId.includes('GUEST') ? { id: parseInt(shopifyCustomerId, 10) } : undefined,
-                shipping_address: {
-                    first_name: shippingAddress?.first_name || shippingAddress?.name?.split(' ')[0] || customer.name?.split(' ')[0] || 'App',
-                    last_name: shippingAddress?.last_name || shippingAddress?.name?.split(' ').slice(1).join(' ') || customer.name?.split(' ').slice(1).join(' ') || 'User',
-                    address1: shippingAddress?.line1 || shippingAddress?.street || '',
-                    address2: shippingAddress?.line2 || '',
-                    city: shippingAddress?.city || '',
-                    province: shippingAddress?.state || '',
-                    zip: shippingAddress?.pincode || shippingAddress?.zip || '',
-                    country: shippingAddress?.country || 'India',
-                    phone: customerPhone || customer.phone || shippingAddress?.phone || '',
-                },
-                phone: customerPhone || customer.phone || shippingAddress?.phone || '',
-            };
-
-            // Apply discount if credits used (as a custom line item or discount)
-            if (appliedStoreCredits > 0) {
-              shopifyOrderPayload.discount_codes = [
-                { code: 'STORE_CREDIT', amount: String(appliedStoreCredits), type: 'fixed_amount' }
-              ];
-            }
-
-            shopifyOrderPayload.billing_address = shopifyOrderPayload.shipping_address;
-
-            // Add transactions for prepaid orders so Shopify records the correct gateway
-            if (paymentStatus === 'paid' && paymentMethod !== 'COD') {
-              shopifyOrderPayload.transactions = [{
-                kind: "sale",
-                status: "success",
-                amount: parseFloat(String(total || 0)).toFixed(2),
-                currency: "INR",
-                gateway: "razorpay",
-                authorization: paymentId || null
-              }];
-            }
-
-            shopifyOrderRes = await createOrder(shopifyOrderPayload);
-            finalShopifyOrderId = String(shopifyOrderRes.id);
-            finalTags = `${tags}, synced`;
-            isSyncedNow = true;
-            console.log(`[App API] Order synced to Shopify: ${finalShopifyOrderId}`);
-        } catch (shopifyErr: any) {
-            console.error('[App API] Shopify instant sync failed:', shopifyErr.message);
-        }
-    }
+    // --- SHOPIFY SYNC FLAG ---
+    const shouldSyncNow = (paymentStatus === 'paid') && (!existingOrder?.shopifyOrderId || existingOrder.shopifyOrderId.startsWith('#') || existingOrder.shopifyOrderId.startsWith('local_') || existingOrder.shopifyOrderId.startsWith('app_pending_'));
 
     if (existingOrder) {
       console.log(`[App API] Updating existing order ${existingOrder.id}...`);
@@ -395,9 +305,9 @@ export async function POST(req: Request) {
               email: customerEmail || customer!.email || shippingAddress?.email || '',
             }),
             internalOrderNumber: orderNumber,
-            shopifyOrderName: shopifyOrderRes ? shopifyOrderRes.name : null,
-            shopifySyncStatus: isSyncedNow ? 'synced' : 'failed',
-            shopifySyncError: isSyncedNow ? null : 'Shopify sync failed during order completion',
+            shopifyOrderName: existingOrder!.shopifyOrderName || null,
+            shopifySyncStatus: existingOrder!.shopifySyncStatus || 'not_synced',
+            shopifySyncError: null,
           }
         });
       });
@@ -449,6 +359,27 @@ export async function POST(req: Request) {
         console.error("[MobileCheckout] Failed to mark cart converted:", cartErr.message);
       }
 
+      // Delegate Shopify order creation to the single choke point
+      if (shouldSyncNow) {
+        try {
+          const syncRes = await syncOrderToShopify(updated.id, { preserveAppTags: true });
+          if (syncRes.success && syncRes.shopifyOrderId) {
+            finalShopifyOrderId = syncRes.shopifyOrderId;
+            isSyncedNow = true;
+            await prisma.mobileOrder.updateMany({
+              where: { orderNumber },
+              data: {
+                shopifyOrderId: syncRes.shopifyOrderId,
+                status: 'synced',
+                syncedAt: new Date(),
+              },
+            });
+          }
+        } catch (syncErr: any) {
+          console.error('[App API] Shopify sync error:', syncErr.message);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         orderId: updated.id,
@@ -494,9 +425,9 @@ export async function POST(req: Request) {
           paymentCapturedAt: paymentStatus === 'paid' ? now : null,
           
           internalOrderNumber: orderNumber,
-          shopifyOrderName: shopifyOrderRes ? shopifyOrderRes.name : null,
-          shopifySyncStatus: isSyncedNow ? 'synced' : 'failed',
-          shopifySyncError: isSyncedNow ? null : 'Shopify sync failed during order completion',
+          shopifyOrderName: null,
+          shopifySyncStatus: shouldSyncNow ? 'pending' : 'not_synced',
+          shopifySyncError: null,
 
           items: {
             create: await Promise.all(lineItems.map(async (li: any, idx: number) => {
@@ -662,6 +593,27 @@ export async function POST(req: Request) {
       }
     } catch (cartErr: any) {
       console.error("[MobileCheckout] Failed to mark cart converted:", cartErr.message);
+    }
+
+    // Delegate Shopify order creation to the single choke point
+    if (shouldSyncNow) {
+      try {
+        const syncRes = await syncOrderToShopify(created.id, { preserveAppTags: true });
+        if (syncRes.success && syncRes.shopifyOrderId) {
+          finalShopifyOrderId = syncRes.shopifyOrderId;
+          isSyncedNow = true;
+          await prisma.mobileOrder.updateMany({
+            where: { orderNumber },
+            data: {
+              shopifyOrderId: syncRes.shopifyOrderId,
+              status: 'synced',
+              syncedAt: new Date(),
+            },
+          });
+        }
+      } catch (syncErr: any) {
+        console.error('[App API] Shopify sync error:', syncErr.message);
+      }
     }
 
     return NextResponse.json({

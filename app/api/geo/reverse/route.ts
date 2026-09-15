@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { matchIndianState } from "@/lib/countries";
 
 export const dynamic = "force-dynamic";
 
@@ -43,16 +44,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // ── Strategy 1: Google Maps Geocoding API ──────────────────────────
-    const googleApiKey =
-      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
-      process.env.GOOGLE_MAPS_API_KEY ||
-      "";
+    // ── Strategy 1: Google Maps Geocoding API (Only if dedicated server key without referrer restrictions is set) ──
+    const googleServerKey = process.env.GOOGLE_MAPS_SERVER_KEY || "";
 
-    if (googleApiKey) {
+    if (googleServerKey) {
       try {
-        const gmUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}`;
-        const gmRes = await fetch(gmUrl, { next: { revalidate: 3600 } });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const gmUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleServerKey}`;
+        const gmRes = await fetch(gmUrl, { signal: controller.signal, next: { revalidate: 3600 } });
+        clearTimeout(timeoutId);
         if (gmRes.ok) {
           const gmData = await gmRes.json();
           if (gmData.status === "OK" && gmData.results && gmData.results[0]) {
@@ -107,7 +108,7 @@ export async function GET(req: NextRequest) {
               street: street || landmark || first.formatted_address?.split(",")[0] || "",
               landmark,
               city,
-              state,
+              state: matchIndianState(state) || state,
               zip,
               country,
               countryCode,
@@ -119,20 +120,24 @@ export async function GET(req: NextRequest) {
           }
         }
       } catch (gmErr) {
-        console.warn("[ReverseGeo] Google Geocoding API failed, falling back:", gmErr);
+        console.warn("[ReverseGeo] Google Geocoding API skipped/failed:", gmErr);
       }
     }
 
-    // ── Strategy 2: OpenStreetMap Nominatim (Server-Side) ──────────────
+    // ── Strategy 2: OpenStreetMap Nominatim (Fast & Reliable) ──────────────
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       const nomUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
       const nomRes = await fetch(nomUrl, {
         headers: {
           "Accept-Language": "en",
-          "User-Agent": "ZicaBellaBackend/1.0 (contact@zicabella.com)",
+          "User-Agent": "ZicaBellaStore/2.0 (support@zicabella.com)",
         },
+        signal: controller.signal,
         next: { revalidate: 3600 },
       });
+      clearTimeout(timeoutId);
 
       if (nomRes.ok) {
         const data = await nomRes.json();
@@ -140,10 +145,11 @@ export async function GET(req: NextRequest) {
           const addr = data.address;
           const houseNo = addr.house_number || addr.building || "";
           const road = addr.road || addr.residential || "";
-          const suburb = addr.suburb || addr.neighbourhood || addr.quarter || "";
+          const suburb = addr.suburb || addr.neighbourhood || addr.quarter || addr.subdistrict || "";
           const street = [road, suburb].filter(Boolean).join(", ");
           const city = addr.city || addr.town || addr.village || addr.county || addr.state_district || "";
-          const state = addr.state || "";
+          const rawState = addr.state || "";
+          const state = matchIndianState(rawState) || rawState;
           const zip = (addr.postcode || "").replace(/\s/g, "").slice(0, 6);
           const country = addr.country || "India";
           const countryCode = (addr.country_code || "in").toUpperCase();
@@ -171,15 +177,21 @@ export async function GET(req: NextRequest) {
 
     // ── Strategy 3: BigDataCloud Client-Free Reverse Geocode ───────────
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
       const bdcUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`;
-      const bdcRes = await fetch(bdcUrl, { next: { revalidate: 3600 } });
+      const bdcRes = await fetch(bdcUrl, { signal: controller.signal, next: { revalidate: 3600 } });
+      clearTimeout(timeoutId);
+
       if (bdcRes.ok) {
         const data = await bdcRes.json();
         if (data) {
           const street = data.locality || data.principalSubdivisionDescription || "";
           const city = data.city || data.locality || "";
-          const state = data.principalSubdivision || "";
-          const zip = data.postcode || "";
+          const rawState = data.principalSubdivision || "";
+          const state = matchIndianState(rawState) || rawState;
+          const rawZip = data.postcode || "";
+          const zip = rawZip && rawZip !== "0" ? rawZip.replace(/\s/g, "").slice(0, 6) : "";
           const country = data.countryName || "India";
           const countryCode = (data.countryCode || "IN").toUpperCase();
 
@@ -202,11 +214,19 @@ export async function GET(req: NextRequest) {
       console.warn("[ReverseGeo] BigDataCloud failed:", bdcErr);
     }
 
+    // ── Strategy 4: Resilient Fallback ─────────────────────────────────
     return NextResponse.json<ReverseGeoResponse>({
-      ok: false,
-      error: "Unable to reverse geocode coordinates",
+      ok: true,
+      formattedAddress: "India",
+      street: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: "India",
+      countryCode: "IN",
       lat,
       lng,
+      source: "fallback",
     });
   } catch (error: any) {
     console.error("[ReverseGeo] Unexpected error:", error);

@@ -88,8 +88,11 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
             });
           }
 
-          // Fallback Shopify sync if main order not yet synced
-          if (!(confirmedMainOrder as any).shopifyOrderId || String((confirmedMainOrder as any).shopifyOrderId).startsWith('local_')) {
+          // Fallback Shopify sync if main order not yet synced and not in-flight
+          if (
+            (!(confirmedMainOrder as any).shopifyOrderId || String((confirmedMainOrder as any).shopifyOrderId).startsWith('local_')) &&
+            (confirmedMainOrder as any).shopifySyncStatus !== 'syncing'
+          ) {
             try {
               const { syncOrderToShopify } = await import('@/lib/services/shopifyOrderSyncService');
               await syncOrderToShopify(String(confirmedMainOrder.id));
@@ -270,8 +273,11 @@ export async function syncPendingWebStoreOrders(orderIds?: string[]): Promise<Sy
                 }
               }
 
-              // 4. Fallback Shopify sync if main order not yet synced
-              if (!mOrder.shopifyOrderId || String(mOrder.shopifyOrderId).startsWith('local_') || String(mOrder.shopifyOrderId).startsWith('app_pending_')) {
+              // 4. Fallback Shopify sync if main order not yet synced and not in-flight
+              if (
+                (!mOrder.shopifyOrderId || String(mOrder.shopifyOrderId).startsWith('local_') || String(mOrder.shopifyOrderId).startsWith('app_pending_')) &&
+                (mOrder as any).shopifySyncStatus !== 'syncing'
+              ) {
                 try {
                   const { syncOrderToShopify } = await import('@/lib/services/shopifyOrderSyncService');
                   await syncOrderToShopify(String(mOrder.id));

@@ -18,7 +18,7 @@
 
 import { saveUserDataToCookies, initPixel } from './metaPixel';
 import { parseGeoAddressComponents } from './parseGeoAddressComponents';
-import { loadGoogleMaps } from './googleMapsLoader';
+import { loadGoogleMaps, getLoadedLibrary } from './googleMapsLoader';
 
 const SESSION_KEY = 'zb_geo_done';
 
@@ -98,27 +98,35 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
     // - 'prompt': triggers native browser dialog
     // - 'unknown': same as prompt (Permissions API unsupported)
     const position = await new Promise<GeolocationPosition | null>((resolve) => {
+      const timer = setTimeout(() => resolve(null), 3500);
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve(pos),
-        () => resolve(null), // Error/denial — resolve null, don't throw
+        (pos) => {
+          clearTimeout(timer);
+          resolve(pos);
+        },
+        () => {
+          clearTimeout(timer);
+          resolve(null);
+        },
         {
-          enableHighAccuracy: false, // Low accuracy is fine for city-level
-          timeout: 8000,
-          maximumAge: 300000, // 5 min cache OK
+          enableHighAccuracy: false,
+          timeout: 3000,
+          maximumAge: 300000,
         }
       );
     });
 
     if (!position) {
-      // GPS failed — try IP fallback
+      // GPS failed or timed out — try IP fallback
       try {
         const geoRes = await fetch('/api/geo');
         const geoData = await geoRes.json();
         if (geoData.ok) {
+          const cleanZip = geoData.zip && geoData.zip !== '0' && geoData.zip !== 'null' ? geoData.zip : null;
           sessionStorage.setItem('zb_geo_data', JSON.stringify({
             city: geoData.city || null,
             state: geoData.region || null,
-            zip: geoData.zip || null,
+            zip: cleanZip,
             country: geoData.country || null,
             countryCode: geoData.countryCode || null,
             latitude: geoData.lat,
@@ -127,7 +135,7 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
           await saveUserDataToCookies({
             city: geoData.city || undefined,
             state: geoData.region || undefined,
-            zip: geoData.zip || undefined,
+            zip: cleanZip || undefined,
             country: geoData.country || undefined,
           });
           initPixel();
@@ -143,52 +151,70 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
 
     const { latitude, longitude } = position.coords;
 
-    // Reverse geocode using Google Maps Geocoding API via the singleton loader
-    const mapsOk = await loadGoogleMaps(['geocoding']);
-    if (!mapsOk) {
-      sessionStorage.setItem(SESSION_KEY, 'geocoding_load_failed');
-      return;
-    }
+    let parsed: any = null;
 
-    const Geocoder = (window as any).google?.maps?.Geocoder;
-    if (!Geocoder) {
-      sessionStorage.setItem(SESSION_KEY, 'no_geocoder');
-      return;
-    }
-
-    const geocoder = new Geocoder();
-    const geoResult = await new Promise<any>((resolve) => {
-      geocoder.geocode(
-        { location: { lat: latitude, lng: longitude } },
-        (results: any, status: any) => {
-          if (status === 'OK' && results && results[0]) {
-            resolve(results[0]);
-          } else {
-            resolve(null);
+    // 1. Try Google Maps Geocoding API if available
+    try {
+      const mapsOk = await loadGoogleMaps(['geocoding']);
+      if (mapsOk) {
+        const geocodingLib = getLoadedLibrary('geocoding');
+        const Geocoder = geocodingLib?.Geocoder ?? (window as any).google?.maps?.Geocoder;
+        if (Geocoder) {
+          const geocoder = new Geocoder();
+          const geoResult = await new Promise<any>((resolve) => {
+            geocoder.geocode(
+              { location: { lat: latitude, lng: longitude } },
+              (results: any, status: any) => {
+                if (status === 'OK' && results && results[0]) {
+                  resolve(results[0]);
+                } else {
+                  resolve(null);
+                }
+              }
+            );
+          });
+          if (geoResult?.address_components) {
+            parsed = parseGeoAddressComponents(geoResult.address_components);
           }
         }
-      );
-    });
-
-    if (!geoResult || !geoResult.address_components) {
-      sessionStorage.setItem(SESSION_KEY, 'geocode_failed');
-      return;
+      }
+    } catch {
+      // Ignore Google Maps errors and proceed to server fallback
     }
 
-    // Parse address components using the shared utility
-    const parsed = parseGeoAddressComponents(geoResult.address_components);
+    // 2. Server-side reverse geocode fallback via Nominatim / OSM
+    if (!parsed || (!parsed.city && !parsed.state && !parsed.zip)) {
+      try {
+        const revRes = await fetch(`/api/geo/reverse?lat=${latitude}&lng=${longitude}`);
+        if (revRes.ok) {
+          const revData = await revRes.json();
+          if (revData && revData.ok) {
+            parsed = {
+              city: revData.city || null,
+              state: revData.state || null,
+              zip: revData.zip || null,
+              country: revData.country || null,
+              countryCode: revData.countryCode || null,
+            };
+          }
+        }
+      } catch {
+        // Fallback failed
+      }
+    }
 
-    // Only proceed if we got at least one useful field
-    if (!parsed.city && !parsed.state && !parsed.zip && !parsed.country) {
+    if (!parsed || (!parsed.city && !parsed.state && !parsed.zip && !parsed.country)) {
       sessionStorage.setItem(SESSION_KEY, 'no_address_data');
       return;
     }
+
+    const cleanZip = parsed.zip && parsed.zip !== '0' && parsed.zip !== 'null' ? parsed.zip : null;
 
     // Cache the resolved data in sessionStorage for reference
     sessionStorage.setItem('zb_geo_data', JSON.stringify({
       city: parsed.city,
       state: parsed.state,
-      zip: parsed.zip,
+      zip: cleanZip,
       country: parsed.country,
       countryCode: parsed.countryCode,
       latitude,
@@ -196,12 +222,10 @@ export async function enrichSessionWithGeolocation(): Promise<void> {
     }));
 
     // Save to Meta PII cookies (hashed) via the existing pipeline
-    // This uses the same saveUserDataToCookies that the checkout page uses,
-    // so the hashing/normalization is identical.
     await saveUserDataToCookies({
       city: parsed.city || undefined,
       state: parsed.state || undefined,
-      zip: parsed.zip || undefined,
+      zip: cleanZip || undefined,
       country: parsed.country || undefined,
     });
 

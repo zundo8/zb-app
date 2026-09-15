@@ -7,7 +7,7 @@ import Image from "next/image";
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingBag, Users, Eye,
   Activity, ShoppingCart, Target, BarChart3, Globe as GlobeIcon, Smartphone,
-  Monitor, RefreshCw, CreditCard,
+  Monitor, RefreshCw, CreditCard, Megaphone,
   ArrowDownRight, Percent, AlertTriangle, MapPin, Building2,
   Flame, Sparkles, Laptop, ShieldCheck, Zap
 } from "lucide-react";
@@ -84,12 +84,27 @@ interface FunnelData {
 interface TrafficSource {
   source: string; medium: string; sessions: number; visitors: number;
   addToCart: number; checkouts: number; orders: number;
-  revenue: number; conversionRate: number;
+  revenue: number; conversionRate: number; isPaid?: boolean;
 }
 
 interface TrafficData {
   error?: string;
   sources: TrafficSource[];
+}
+
+interface CartsData {
+  error?: string;
+  overview: {
+    total: number; active: number; abandoned: number; converted: number;
+    merged: number; recovered: number; recoveryRate: number; abandonmentRate: number;
+  };
+  values: {
+    activeTotal: number; activeAvg: number; abandonedTotal: number;
+    abandonedAvg: number; recoveredRevenue: number; averageCartValue: number;
+  };
+  topProducts: { productId: string; title: string; carts: number; totalQuantity: number }[];
+  abandonedProducts: { productId: string; title: string; carts: number }[];
+  sources: { source: string; count: number }[];
 }
 
 interface RealtimeData {
@@ -101,6 +116,8 @@ interface RealtimeData {
     newVisitors: number;
     returningVisitors: number;
     unknownCount?: number;
+    liveCarts?: number;
+    liveCartValue?: number;
   };
   topPages: { page: string; count: number }[];
   breakdowns: {
@@ -241,12 +258,16 @@ export default function AnalyticsDashboard() {
   const [locationsError, setLocationsError] = useState<string | null>(null);
   const [products, setProducts] = useState<ProductsData | null>(null);
   const [productsError, setProductsError] = useState<string | null>(null);
+  const [cartsData, setCartsData] = useState<CartsData | null>(null);
+  const [cartsError, setCartsError] = useState<string | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [chartsError, setChartsError] = useState<string | null>(null);
   const [realtimeError, setRealtimeError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>("");
   const [activeChart, setActiveChart] = useState<"revenue" | "orders" | "sessions" | "conversion" | "logins" | "newLogins">("revenue");
   const [activeProductTab, setActiveProductTab] = useState<"bestSelling" | "mostViewed" | "mostAddedToCart" | "productRates">("bestSelling");
@@ -261,7 +282,10 @@ export default function AnalyticsDashboard() {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchAllRef = useRef<(silent?: boolean) => Promise<void>>(() => Promise.resolve());
 
-  // ─── Full fetch (all 7 routes) — on filter/preset change + initial load ───
+  // ─── Full fetch (all routes) — staggered waves to cap DB concurrency ───
+  // Wave 1 (immediate, above-the-fold): overview + realtime → clear loading spinner
+  // Wave 2 (after W1): charts + carts
+  // Wave 3 (after W2): funnel + traffic + locations + products
   const fetchAll = useCallback(async (silent = false) => {
     // Guard: if a fetch is already in-flight AND this is a background tick, skip
     if (silent && fetchInFlightRef.current) return;
@@ -275,6 +299,8 @@ export default function AnalyticsDashboard() {
 
     if (!silent && !hasLoadedRef.current) {
       setLoading(true);
+    } else if (!silent && hasLoadedRef.current) {
+      setIsRefreshing(true); // FIX 2: subtle indicator, don't blank the grid
     } else if (silent) {
       setIsBackgroundRefreshing(true);
     }
@@ -323,6 +349,21 @@ export default function AnalyticsDashboard() {
         }
       };
 
+      const fetchRealtime = async () => {
+        try {
+          const res: RealtimeData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/realtime`);
+          if (controller.signal.aborted) return;
+          if (res?.error) {
+            setRealtimeError(res.error);
+          } else if (res) {
+            setRealtime(res);
+            setRealtimeError(null);
+          }
+        } catch (e: any) {
+          if (e.name !== "AbortError") setRealtimeError(e.message || "Failed to load realtime");
+        }
+      };
+
       const fetchCharts = async () => {
         try {
           const res: ChartData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/charts?${params}`);
@@ -335,6 +376,21 @@ export default function AnalyticsDashboard() {
           }
         } catch (e: any) {
           if (e.name !== "AbortError") setChartsError(e.message || "Failed to load charts");
+        }
+      };
+
+      const fetchCartsData = async () => {
+        try {
+          const res: CartsData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/carts?${params}`);
+          if (controller.signal.aborted) return;
+          if (res?.error) {
+            setCartsError(res.error);
+          } else if (res) {
+            setCartsData(res);
+            setCartsError(null);
+          }
+        } catch (e: any) {
+          if (e.name !== "AbortError") setCartsError(e.message || "Failed to load carts");
         }
       };
 
@@ -368,21 +424,6 @@ export default function AnalyticsDashboard() {
         }
       };
 
-      const fetchRealtime = async () => {
-        try {
-          const res: RealtimeData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/realtime`);
-          if (controller.signal.aborted) return;
-          if (res?.error) {
-            setRealtimeError(res.error);
-          } else if (res) {
-            setRealtime(res);
-            setRealtimeError(null);
-          }
-        } catch (e: any) {
-          if (e.name !== "AbortError") setRealtimeError(e.message || "Failed to load realtime");
-        }
-      };
-
       const fetchLocations = async () => {
         try {
           const res: LocationsData & { error?: string } = await handleSafeFetch(`/api/admin/analytics/locations?${params}`);
@@ -413,16 +454,22 @@ export default function AnalyticsDashboard() {
         }
       };
 
-      await Promise.allSettled([
-        fetchOverview(),
-        fetchCharts(),
-        fetchFunnel(),
-        fetchTraffic(),
-        fetchRealtime(),
-        fetchLocations(),
-        fetchProducts(),
-      ]);
+      // ─── Wave 1 (above-the-fold): overview + realtime ───
+      await Promise.allSettled([fetchOverview(), fetchRealtime()]);
+      if (controller.signal.aborted) return;
 
+      // Clear initial loading after Wave 1 — KPIs + realtime now visible
+      if (!hasLoadedRef.current) {
+        setLoading(false);
+        setHasLoaded(true);
+      }
+
+      // ─── Wave 2: charts + carts ───
+      await Promise.allSettled([fetchCharts(), fetchCartsData()]);
+      if (controller.signal.aborted) return;
+
+      // ─── Wave 3: funnel + traffic + locations + products ───
+      await Promise.allSettled([fetchFunnel(), fetchTraffic(), fetchLocations(), fetchProducts()]);
       if (controller.signal.aborted) return;
 
       hasLoadedRef.current = true;
@@ -437,6 +484,7 @@ export default function AnalyticsDashboard() {
     } finally {
       fetchInFlightRef.current = false;
       setLoading(false);
+      setIsRefreshing(false);
       setIsBackgroundRefreshing(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -684,10 +732,10 @@ export default function AnalyticsDashboard() {
           <p className="text-sm text-foreground/40 mt-1">Real-time e-commerce analytics & performance engine</p>
         </div>
         <div className="flex items-center gap-3">
-          {isBackgroundRefreshing && (
+          {(isBackgroundRefreshing || isRefreshing) && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold">
               <Zap className="w-3 h-3 animate-bounce" />
-              <span>Live Syncing</span>
+              <span>{isRefreshing ? 'Refreshing' : 'Live Syncing'}</span>
             </div>
           )}
           {lastRefreshedAt && (
@@ -743,13 +791,24 @@ export default function AnalyticsDashboard() {
           ))}
         </div>
 
-        {/* Real-time indicator */}
+        {/* Real-time indicator + Live Carts */}
         {realtime && !realtime.error && (
-          <div className="flex items-center gap-2 ml-auto">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            <span className="text-[11px] font-medium text-foreground/50">
-              {realtime.summary.totalActive} active now
-            </span>
+          <div className="flex items-center gap-3 ml-auto">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-[11px] font-medium text-foreground/50">
+                {realtime.summary.totalActive} active now
+              </span>
+            </div>
+            {(realtime.summary.liveCarts !== undefined && realtime.summary.liveCarts > 0) && (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                <ShoppingCart className="w-3 h-3 text-amber-400" />
+                <span className="text-[10px] font-bold text-amber-400">
+                  {realtime.summary.liveCarts} live cart{realtime.summary.liveCarts !== 1 ? 's' : ''}
+                  {realtime.summary.liveCartValue ? ` · ${formatCurrency(realtime.summary.liveCartValue)}` : ''}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -781,7 +840,7 @@ export default function AnalyticsDashboard() {
       )}
 
       {/* ─── KPI Cards / Loading Skeletons ──────────────── */}
-      {loading && !overview ? (
+      {loading && !hasLoaded ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="glass-card p-5 rounded-2xl border border-foreground/5 h-24 animate-pulse bg-foreground/[0.02]" />
@@ -813,7 +872,7 @@ export default function AnalyticsDashboard() {
 
       {/* ─── Top Visitor Locations ──────────────────────────── */}
       {locationsError && <SectionError message={locationsError} onRetry={() => fetchAll(false)} />}
-      {loading && !locations ? (
+      {!hasLoaded && !locations ? (
         <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-80 animate-pulse bg-foreground/[0.02]" />
       ) : locations ? (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
@@ -923,7 +982,7 @@ export default function AnalyticsDashboard() {
       {/* ─── Charts Section ──────────────────────────────── */}
       {chartsError && <SectionError message={chartsError} onRetry={() => fetchAll(false)} />}
 
-      {loading && !charts ? (
+      {!hasLoaded && !charts ? (
         <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-80 animate-pulse bg-foreground/[0.02]" />
       ) : charts && charts.timeSeries.length > 0 ? (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
@@ -1006,7 +1065,7 @@ export default function AnalyticsDashboard() {
       ) : null}
 
       {productsError && <SectionError message={productsError} onRetry={() => fetchAll(false)} />}
-      {loading && !products ? (
+      {!hasLoaded && !products ? (
         <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-64 animate-pulse bg-foreground/[0.02]" />
       ) : products ? (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
@@ -1116,7 +1175,7 @@ export default function AnalyticsDashboard() {
         {/* Conversion Funnel */}
         <div className="lg:col-span-1">
           {funnelError && <SectionError message={funnelError} onRetry={() => fetchAll(false)} />}
-          {loading && !funnel ? (
+          {!hasLoaded && !funnel ? (
             <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-96 animate-pulse bg-foreground/[0.02]" />
           ) : funnel && funnel.length > 0 && funnel.some(s => s.sessions > 0) ? (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 h-full">
@@ -1176,7 +1235,7 @@ export default function AnalyticsDashboard() {
         {/* Real-time Activity & 3D Globe */}
         <div className="lg:col-span-2">
           {realtimeError && <SectionError message={realtimeError} onRetry={() => fetchAll(false)} />}
-          {loading && !realtime ? (
+          {!hasLoaded && !realtime ? (
             <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-96 animate-pulse bg-foreground/[0.02]" />
           ) : realtime ? (
             <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5 flex flex-col justify-between">
@@ -1365,7 +1424,7 @@ export default function AnalyticsDashboard() {
       )}
 
       {trafficError && <SectionError message={trafficError} onRetry={() => fetchAll(false)} />}
-      {loading && !traffic ? (
+      {!hasLoaded && !traffic ? (
         <div className="glass-card rounded-2xl border border-foreground/5 p-5 h-64 animate-pulse bg-foreground/[0.02]" />
       ) : traffic && traffic.length > 0 ? (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
@@ -1496,6 +1555,120 @@ export default function AnalyticsDashboard() {
           </div>
         </motion.div>
       )}
+
+      {/* ─── Sales by Mode (COD vs Prepaid) ─────────────── */}
+      {overview && (
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
+          <h2 className="text-sm font-semibold text-foreground/70 mb-4">Sales by Mode</h2>
+          {(() => {
+            const COD_METHODS = ['cod', 'cod_upfront_paid', 'cash_on_delivery', 'cash'];
+            const codData = { orders: 0, revenue: 0 };
+            const prepaidData = { orders: 0, revenue: 0 };
+            for (const p of overview.orders.paymentBreakdown) {
+              const method = (p.method || '').toLowerCase();
+              if (COD_METHODS.some(c => method.includes(c))) {
+                codData.orders += p.count;
+                codData.revenue += p.revenue;
+              } else {
+                prepaidData.orders += p.count;
+                prepaidData.revenue += p.revenue;
+              }
+            }
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { label: 'COD', icon: ShoppingBag, data: codData, color: 'amber' },
+                  { label: 'Prepaid', icon: CreditCard, data: prepaidData, color: 'emerald' },
+                ].map(({ label, icon: ModeIcon, data, color }) => (
+                  <div key={label} className={`p-5 rounded-2xl bg-gradient-to-br from-foreground/[0.01] to-foreground/[0.02] border border-foreground/5 hover:border-foreground/10 transition-colors`}>
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className={`p-1.5 rounded-lg bg-${color}-500/10`}>
+                        <ModeIcon className={`w-4 h-4 text-${color}-500`} />
+                      </div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-foreground/60">{label}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-xl font-bold tracking-tight">{formatNumber(data.orders)}</div>
+                        <div className="text-[9px] text-foreground/30 uppercase font-semibold mt-0.5">Orders</div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold tracking-tight">{formatCurrency(Math.round(data.revenue * 100) / 100)}</div>
+                        <div className="text-[9px] text-foreground/30 uppercase font-semibold mt-0.5">Revenue</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {overview.orders.paymentBreakdown.length === 0 && (
+                  <div className="col-span-2 text-center py-6 text-foreground/20 text-xs">No payment data available</div>
+                )}
+              </div>
+            );
+          })()}
+        </motion.div>
+      )}
+
+      {/* ─── Revenue by Ad Channel ─────────────────────────── */}
+      {traffic && (() => {
+        const paidSources = traffic.filter(s => s.isPaid);
+        return (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl border border-foreground/5 p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Megaphone className="w-4 h-4 text-purple-400" />
+              <h2 className="text-sm font-semibold text-foreground/70">Revenue by Ad Channel</h2>
+              <span className="text-[9px] text-foreground/30 ml-auto">Based on UTM attribution</span>
+            </div>
+            {paidSources.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="text-foreground/40 uppercase tracking-wider border-b border-foreground/5">
+                      <th className="text-left py-2 pr-4 font-semibold">Channel</th>
+                      <th className="text-right py-2 px-2 font-semibold">Sessions</th>
+                      <th className="text-right py-2 px-2 font-semibold">Orders</th>
+                      <th className="text-right py-2 px-2 font-semibold">Revenue</th>
+                      <th className="text-right py-2 pl-2 font-semibold">CVR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paidSources.sort((a, b) => b.revenue - a.revenue).map((src, i) => (
+                      <tr key={i} className="border-b border-foreground/[0.03] hover:bg-foreground/[0.02] transition-colors">
+                        <td className="py-2.5 pr-4">
+                          <div className="flex items-center gap-2">
+                            <Megaphone className="w-3 h-3 text-purple-400" />
+                            <span className="font-medium text-foreground/70">{src.source}</span>
+                            {src.medium && src.medium !== 'None' && <span className="text-foreground/30">/ {src.medium}</span>}
+                          </div>
+                        </td>
+                        <td className="text-right py-2.5 px-2 font-semibold">{formatNumber(src.sessions)}</td>
+                        <td className="text-right py-2.5 px-2 font-semibold">{src.orders}</td>
+                        <td className="text-right py-2.5 px-2 font-semibold text-emerald-400">{formatCurrency(src.revenue)}</td>
+                        <td className="text-right py-2 pl-2">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                            src.conversionRate > 2 ? 'text-emerald-500 bg-emerald-500/10' : 'text-foreground/40 bg-foreground/5'
+                          }`}>
+                            {src.conversionRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-3 pt-3 border-t border-foreground/5 flex items-center justify-between text-[10px] text-foreground/30">
+                  <span>ROAS: spend data not connected</span>
+                  <span>Totals: {formatNumber(paidSources.reduce((s, c) => s + c.orders, 0))} orders · {formatCurrency(paidSources.reduce((s, c) => s + c.revenue, 0))} revenue</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 text-foreground/20">
+                <Megaphone className="w-8 h-8 mb-2" />
+                <span className="text-xs">No attributed ad revenue yet</span>
+                <span className="text-[10px] mt-1 text-foreground/15">Ensure UTM tags (utm_source=openai|meta|snapchat|google|tiktok, utm_medium=cpc) are set on paid campaign links</span>
+              </div>
+            )}
+          </motion.div>
+        );
+      })()}
 
       {/* ─── Empty state ─────────────────────────────────── */}
       {!loading && !overview && !overviewError && !charts && !realtime && (

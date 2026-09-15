@@ -246,7 +246,11 @@ const prismaClientSingleton = () => {
       }
     });
 
-    console.log(`[DB] Prisma Client initialized with PgAdapter (Pooler max:${poolMax}, statement_timeout:8s)`);
+    // IMPORTANT: The analytics page must never exceed pool capacity.
+    // This is guaranteed by: (1) client-side wave loading (max 2 routes at a time),
+    // (2) per-route pLimit(4) concurrency limiter, and (3) 30s in-process caching.
+    // Do NOT raise poolMax above Supavisor's connection limit.
+    console.log(`[DB] Prisma Client initialized with PgAdapter (Pooler max:${poolMax}, statement_timeout:12s)`);
     return extendedClient as any;
   } catch (error: any) {
     console.error('[DB] Critical Prisma initialization error:', error.message);

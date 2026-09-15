@@ -55,6 +55,11 @@ export async function GET(req: Request) {
         include: { items: true },
       });
 
+      // Refuse expired carts — they've passed the 30-day lifecycle
+      if (recoveryCart && recoveryCart.status === "expired") {
+        return NextResponse.json({ items: [], cartId: null, error: "Cart has expired" });
+      }
+
       if (recoveryCart && recoveryCart.items.length > 0) {
         // Only associate if the cart has no owner, or already belongs to this customer
         if (!recoveryCart.customerId || recoveryCart.customerId === customerId) {

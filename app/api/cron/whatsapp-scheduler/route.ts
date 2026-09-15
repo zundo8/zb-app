@@ -38,12 +38,31 @@ export async function GET(req: NextRequest) {
     abandonedCartStep1Sent: 0,
     abandonedCartStep2Sent: 0,
     abandonedCartStep3Sent: 0,
+    cartsExpired: 0,
+    identityDuplicatesSkipped: 0,
     errors: []
   };
 
   let success = true;
 
   try {
+    // 0. Expire stale carts (30-day lifecycle)
+    // Run before any messaging to prevent sending recovery to 30-day-old carts.
+    try {
+      const cutoff30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const expired = await db.cart.updateMany({
+        where: {
+          status: { in: ['active', 'abandoned'] },
+          convertedOrderId: null,
+          lastActivityAt: { lt: cutoff30 },
+        },
+        data: { status: 'expired' },
+      });
+      results.cartsExpired = expired.count;
+    } catch (err: any) {
+      results.errors.push(`Cart expiry error: ${err.message}`);
+    }
+
     // 1. Process Scheduled Campaigns
     try {
       const now = new Date();
@@ -496,11 +515,68 @@ export async function GET(req: NextRequest) {
         }
       });
 
+      // ── Identity-based dedup: collapse to one cart per person ──
+      // Compute a normalized identity key per cart so two rows for the same
+      // person can never both trigger the same recovery stage.
+      const idKey = (c: any): string =>
+        c.customerId
+          ? `cid:${c.customerId}`
+          : (c.phoneLast10 || (c.phone ? c.phone.replace(/\D/g, '').slice(-10) : null))
+            ? `ph:${c.phoneLast10 || c.phone.replace(/\D/g, '').slice(-10)}`
+            : (c.email ? `em:${c.email.trim().toLowerCase()}` : `cart:${c.id}`);
+
+      // Build sentIdentityStages from already-sent recovery messages
+      const sentIdentityStages = new Set<string>();
+
+      // Map cartId → cart for identity resolution of existing messages
+      const cartById = new Map<string, any>();
+      for (const c of carts) {
+        cartById.set(c.id, c);
+      }
+
+      // From cartMessages (linked by cartId): resolve identity via the cart
+      for (const msg of cartMessages) {
+        if (!msg.cartId || !msg.recoveryStage) continue;
+        if (!['processing', 'sent', 'delivered', 'read'].includes(msg.status)) continue;
+        const linkedCart = cartById.get(msg.cartId);
+        if (linkedCart) {
+          sentIdentityStages.add(`${idKey(linkedCart)}::${msg.recoveryStage}`);
+        }
+      }
+
+      // From recoveryMessages (broader 30-day window): resolve by phoneNumber last-10
+      for (const msg of recoveryMessages) {
+        if (!msg.recoveryStage) continue;
+        if (!['processing', 'sent', 'delivered', 'read'].includes(msg.status)) continue;
+        const phoneLast10 = msg.phoneNumber ? msg.phoneNumber.replace(/\D/g, '').slice(-10) : null;
+        if (phoneLast10) {
+          sentIdentityStages.add(`ph:${phoneLast10}::${msg.recoveryStage}`);
+        }
+        // Also check by cartId if present
+        if (msg.cartId) {
+          const linkedCart = cartById.get(msg.cartId);
+          if (linkedCart) {
+            sentIdentityStages.add(`${idKey(linkedCart)}::${msg.recoveryStage}`);
+          }
+        }
+      }
+
+      // Collapse carts: process only one cart per identity (newest lastActivityAt)
+      const seenIdentities = new Set<string>();
+
       for (const cart of carts) {
         if (cart.status === 'converted' || (cart.convertedOrder && isOrderValidConverted(cart.convertedOrder))) {
           console.log(`[WhatsApp Scheduler] Cart ${cart.id} is already converted. Skipping automated recovery.`);
           continue;
         }
+
+        const cartIdentity = idKey(cart);
+        if (seenIdentities.has(cartIdentity)) {
+          // Already processing a newer cart for this identity; skip this one
+          results.identityDuplicatesSkipped = (results.identityDuplicatesSkipped || 0) + 1;
+          continue;
+        }
+        seenIdentities.add(cartIdentity);
 
         const phone = cart.phone || cart.customer?.phone;
         if (!phone) continue;
@@ -608,6 +684,11 @@ export async function GET(req: NextRequest) {
         }
 
         if (nextStepToProcess === 1) {
+          // Identity-based dedup check: skip if this stage was already sent for this person
+          if (sentIdentityStages.has(`${cartIdentity}::1`)) {
+            console.log(`[Scheduler] Cart ${cart.id} Step 1 already sent for identity ${cartIdentity}, skipping.`);
+            continue;
+          }
           // Step 1: Fired if elapsed time is at least delay1 (default 5m)
           if (elapsedMinutes >= delay1) {
             // Claim job atomically via DB write using upsert to avoid deadlock
@@ -706,6 +787,8 @@ export async function GET(req: NextRequest) {
                 });
               }
               results.abandonedCartStep1Sent++;
+              // Record this identity+stage so later carts for same person are skipped
+              sentIdentityStages.add(`${cartIdentity}::1`);
             } else {
               await db.whatsAppMessage.update({
                 where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 1 } },
@@ -719,6 +802,11 @@ export async function GET(req: NextRequest) {
             }
           }
         } else if (nextStepToProcess === 2) {
+          // Identity-based dedup check for Step 2
+          if (sentIdentityStages.has(`${cartIdentity}::2`)) {
+            console.log(`[Scheduler] Cart ${cart.id} Step 2 already sent for identity ${cartIdentity}, skipping.`);
+            continue;
+          }
           // Step 2: Fired if elapsed time is at least delay2 (default 60m)
           const lastStepTime = step1Sent.length > 0 
             ? new Date(step1Sent[step1Sent.length - 1].createdAt).getTime() 
@@ -816,6 +904,7 @@ export async function GET(req: NextRequest) {
                 }
               }
               results.abandonedCartStep2Sent++;
+              sentIdentityStages.add(`${cartIdentity}::2`);
             } else {
               await db.whatsAppMessage.update({
                 where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 2 } },
@@ -829,6 +918,11 @@ export async function GET(req: NextRequest) {
             }
           }
         } else if (nextStepToProcess === 3) {
+          // Identity-based dedup check for Step 3
+          if (sentIdentityStages.has(`${cartIdentity}::3`)) {
+            console.log(`[Scheduler] Cart ${cart.id} Step 3 already sent for identity ${cartIdentity}, skipping.`);
+            continue;
+          }
           // Step 3: Fired if elapsed time is between delay3 (default 7d) and 11520 minutes (8d)
           const lastStepTime = step2Sent.length > 0 
             ? new Date(step2Sent[step2Sent.length - 1].createdAt).getTime() 
@@ -925,6 +1019,7 @@ export async function GET(req: NextRequest) {
                 }
               }
               results.abandonedCartStep3Sent++;
+              sentIdentityStages.add(`${cartIdentity}::3`);
             } else {
               await db.whatsAppMessage.update({
                 where: { cartId_recoveryStage: { cartId: cart.id, recoveryStage: 3 } },

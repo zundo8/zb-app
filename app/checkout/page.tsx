@@ -45,11 +45,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import { useCountry } from "@/lib/country-context";
-import { loadGoogleMaps, dismissGoogleMapsErrors } from "@/lib/googleMapsLoader";
+import { toast } from "sonner";
+import { loadGoogleMaps, dismissGoogleMapsErrors, resetGoogleMaps, getLoadedLibrary, hasGoogleMapsAuthFailed } from "@/lib/googleMapsLoader";
 import { formatPriceString } from "@/lib/global-pricing-client";
 import {
   COUNTRIES,
   INDIAN_STATES,
+  matchIndianState,
   isIndia,
   findCountry,
   validatePostalCode,
@@ -216,7 +218,7 @@ export default function CheckoutPage() {
     [fmtPrice]
   );
   const { data: session, status } = useSession();
-  const { items, subtotal, clear } = useCart();
+  const { items, subtotal, clear, isLoaded: cartLoaded } = useCart();
   const router = useRouter();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -373,14 +375,37 @@ export default function CheckoutPage() {
   const [zipLoading, setZipLoading] = useState(false);
   const [locating, setLocating] = useState(false);
 
+  // Address search suggestions & dropdown state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<Array<{
+    placeId: string;
+    displayName: string;
+    mainText: string;
+    secondaryText: string;
+    street: string;
+    landmark: string;
+    city: string;
+    state: string;
+    zip: string;
+    country: string;
+    countryCode: string;
+    lat: number;
+    lng: number;
+  }>>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
   // Load Google Maps API via the singleton loader (setOptions called once globally)
   useEffect(() => {
-    if (googleMapsLoaded || googleMapsError) return;
+    if (googleMapsLoaded) return;
 
     loadGoogleMaps(['places', 'geocoding'])
       .then((ok) => {
         if (ok) {
           setGoogleMapsLoaded(true);
+          setGoogleMapsError(false);
         } else {
           console.warn("Google Maps failed to load (missing key or auth error). Falling back to Nominatim + IP geo.");
           dismissGoogleMapsErrors();
@@ -392,25 +417,33 @@ export default function CheckoutPage() {
         dismissGoogleMapsErrors();
         setGoogleMapsError(true);
       });
-  }, [googleMapsLoaded, googleMapsError]);
+  }, [googleMapsLoaded]);
 
   // Initialize Place Autocomplete
   useEffect(() => {
     if (!googleMapsLoaded || !autocompleteInputRef.current) return;
+    if (hasGoogleMapsAuthFailed()) return;
 
     let active = true;
 
     const initAutocomplete = async () => {
       try {
+        if (hasGoogleMapsAuthFailed()) return;
         // Use the singleton loader — it's already loaded, this just awaits the same promise
-        await loadGoogleMaps(['places', 'geocoding']);
-        if (!active) return;
-        const Autocomplete = (window as any).google?.maps?.places?.Autocomplete;
-        if (!Autocomplete) {
-          throw new Error("Autocomplete constructor not found in places library.");
+        const mapsOk = await loadGoogleMaps(['places', 'geocoding']);
+        if (!active || hasGoogleMapsAuthFailed() || !mapsOk) return;
+
+        // Get Autocomplete from the cached library module (preferred) or fall back to global
+        let AutocompleteClass: any = null;
+        if (mapsOk) {
+          const placesLib = getLoadedLibrary('places');
+          AutocompleteClass = placesLib?.Autocomplete ?? (window as any).google?.maps?.places?.Autocomplete;
+        }
+        if (!AutocompleteClass || hasGoogleMapsAuthFailed()) {
+          return;
         }
 
-        const autocomplete = new Autocomplete(autocompleteInputRef.current, {
+        const autocomplete = new AutocompleteClass(autocompleteInputRef.current, {
           fields: ["address_components", "geometry", "place_id", "formatted_address", "name"],
           types: ["geocode", "establishment"]
         });
@@ -485,58 +518,141 @@ export default function CheckoutPage() {
     };
   }, [googleMapsLoaded, showAddressForm]);
 
+  // Dismiss search dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Handle address search suggestions via server-side /api/geo/suggest
+  const handleSearchInput = (value: string) => {
+    setSearchQuery(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    if (!value || value.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    searchDebounceRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const country = address.countryCode || "IN";
+        const res = await fetch(`/api/geo/suggest?q=${encodeURIComponent(value.trim())}&country=${country}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+            setSuggestions(data.suggestions);
+            setShowSuggestions(true);
+          } else {
+            setSuggestions([]);
+          }
+        }
+      } catch (err) {
+        console.warn("[Checkout] Suggest error:", err);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 280);
+  };
+
+  const handleSelectSuggestion = (suggestion: any) => {
+    const matchedState = matchIndianState(suggestion.state);
+
+    setAddress(prev => ({
+      ...prev,
+      street: suggestion.street || prev.street,
+      landmark: suggestion.landmark || prev.landmark,
+      city: suggestion.city || prev.city,
+      state: matchedState || suggestion.state || prev.state,
+      zip: suggestion.zip ? suggestion.zip.replace(/\s/g, "").slice(0, 6) : prev.zip,
+      country: suggestion.country || prev.country,
+      countryCode: suggestion.countryCode || prev.countryCode,
+      lat: suggestion.lat || prev.lat,
+      lng: suggestion.lng || prev.lng,
+      placeId: suggestion.placeId || prev.placeId,
+    }));
+
+    setAddressErrors(prev => {
+      const next = { ...prev };
+      delete next.street;
+      delete next.city;
+      delete next.state;
+      delete next.zip;
+      return next;
+    });
+
+    if (autocompleteInputRef.current) {
+      autocompleteInputRef.current.value = suggestion.displayName || suggestion.mainText;
+    }
+    setSearchQuery(suggestion.mainText);
+    setShowSuggestions(false);
+    toast.success("Address filled from selected location");
+  };
+
   /**
    * Reverse-geocode via server-side endpoint (/api/geo/reverse).
-   * Safely resolves address components with Google Maps/Nominatim/BigDataCloud
+   * Safely resolves address components with OpenStreetMap Nominatim / BigDataCloud
    * without browser CORS or unsafe User-Agent header issues.
    */
-  const reverseGeocodeServer = async (latitude: number, longitude: number) => {
-    const res = await fetch(`/api/geo/reverse?lat=${latitude}&lng=${longitude}`);
-    if (!res.ok) throw new Error("Failed to resolve address details");
-    const data = await res.json();
-    if (data && data.ok) {
-      let matchedState = data.state || "";
-      if (matchedState) {
-        const lowerState = matchedState.toLowerCase().trim();
-        const found = INDIAN_STATES.find(s =>
-          s.toLowerCase() === lowerState ||
-          lowerState.includes(s.toLowerCase()) ||
-          s.toLowerCase().includes(lowerState)
-        );
-        if (found) matchedState = found;
+  const reverseGeocodeServer = async (latitude: number, longitude: number): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/geo/reverse?lat=${latitude}&lng=${longitude}`);
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (data && data.ok) {
+        const matchedState = matchIndianState(data.state);
+        const validZip = data.zip && data.zip !== '0' && data.zip !== 'null'
+          ? data.zip.replace(/\s/g, "").slice(0, 6)
+          : "";
+
+        const resolvedStreet = data.street || data.landmark || (data.formattedAddress ? data.formattedAddress.split(",")[0].trim() : "");
+
+        // Verify that meaningful address information was actually returned
+        if (!data.city && !resolvedStreet && !matchedState) {
+          return false;
+        }
+
+        if (autocompleteInputRef.current && (data.formattedAddress || resolvedStreet)) {
+          autocompleteInputRef.current.value = data.formattedAddress || resolvedStreet;
+        }
+
+        setAddress(prev => ({
+          ...prev,
+          houseNo: data.houseNo || prev.houseNo,
+          street: resolvedStreet || prev.street,
+          landmark: data.landmark || prev.landmark,
+          zip: validZip || prev.zip,
+          city: data.city || prev.city,
+          state: matchedState || prev.state || data.state,
+          country: data.country || prev.country,
+          countryCode: data.countryCode || prev.countryCode,
+          lat: latitude,
+          lng: longitude,
+          placeId: data.placeId || prev.placeId,
+        }));
+
+        setAddressErrors(prev => {
+          const next = { ...prev };
+          if (resolvedStreet) delete next.street;
+          if (data.city) delete next.city;
+          if (matchedState || data.state) delete next.state;
+          if (validZip) delete next.zip;
+          return next;
+        });
+
+        return true;
       }
-
-      if (autocompleteInputRef.current && data.formattedAddress) {
-        autocompleteInputRef.current.value = data.formattedAddress;
-      }
-
-      setAddress(prev => ({
-        ...prev,
-        houseNo: data.houseNo || prev.houseNo,
-        street: data.street || prev.street,
-        landmark: data.landmark || prev.landmark,
-        zip: data.zip ? data.zip.replace(/\s/g, "").slice(0, 6) : prev.zip,
-        city: data.city || prev.city,
-        state: matchedState || prev.state || data.state,
-        country: data.country || prev.country,
-        countryCode: data.countryCode || prev.countryCode,
-        lat: latitude,
-        lng: longitude,
-        placeId: data.placeId || prev.placeId,
-      }));
-
-      setAddressErrors(prev => {
-        const next = { ...prev };
-        delete next.street;
-        delete next.city;
-        delete next.state;
-        delete next.zip;
-        return next;
-      });
-
-      return true;
+      return false;
+    } catch {
+      return false;
     }
-    return false;
   };
 
   /**
@@ -546,26 +662,32 @@ export default function CheckoutPage() {
   const fetchIpGeoFallback = async (): Promise<boolean> => {
     try {
       const res = await fetch('/api/geo');
+      if (!res.ok) return false;
       const data = await res.json();
       if (!data.ok) return false;
 
-      // Match region name to the INDIAN_STATES list
-      let matchedState = data.region || "";
-      if (matchedState) {
-        const lowerState = matchedState.toLowerCase().trim();
-        const found = INDIAN_STATES.find(s =>
-          s.toLowerCase() === lowerState ||
-          lowerState.includes(s.toLowerCase()) ||
-          s.toLowerCase().includes(lowerState)
-        );
-        if (found) matchedState = found;
+      // If coordinates are available, attempt reverse geocoding to obtain street, city, pin code
+      if (typeof data.lat === 'number' && typeof data.lng === 'number') {
+        try {
+          const revOk = await reverseGeocodeServer(data.lat, data.lng);
+          if (revOk) return true;
+        } catch {}
+      }
+
+      const matchedState = matchIndianState(data.region);
+      const validZip = data.zip && data.zip !== '0' && data.zip !== 'null' ? String(data.zip).trim() : '';
+      const fallbackStreet = data.city || '';
+
+      if (autocompleteInputRef.current && data.city) {
+        autocompleteInputRef.current.value = `${data.city}${data.region ? `, ${data.region}` : ''}`;
       }
 
       setAddress(prev => ({
         ...prev,
+        street: prev.street || fallbackStreet,
         city: data.city || prev.city,
-        state: matchedState || prev.state,
-        zip: data.zip || prev.zip,
+        state: matchedState || prev.state || data.region,
+        zip: validZip || prev.zip,
         country: data.country || prev.country,
         countryCode: data.countryCode || prev.countryCode,
         lat: data.lat ?? prev.lat,
@@ -574,9 +696,10 @@ export default function CheckoutPage() {
 
       setAddressErrors(prev => {
         const next = { ...prev };
-        delete next.city;
-        delete next.state;
-        delete next.zip;
+        if (data.city) delete next.city;
+        if (matchedState || data.region) delete next.state;
+        if (validZip) delete next.zip;
+        if (fallbackStreet || prev.street) delete next.street;
         return next;
       });
 
@@ -587,157 +710,105 @@ export default function CheckoutPage() {
   };
 
   const handleDetectLocation = async () => {
-    if (!navigator.geolocation) {
-      // Geolocation unsupported — try IP fallback
-      setLocating(true);
-      setError("");
-      const ipOk = await fetchIpGeoFallback();
+    setLocating(true);
+    setError("");
+
+    // Dismiss any lingering Google Maps error overlays
+    dismissGoogleMapsErrors();
+
+    // Helper to resolve coordinates via server reverse-geocoding
+    const applyCoordinates = async (latitude: number, longitude: number): Promise<boolean> => {
+      try {
+        const revOk = await reverseGeocodeServer(latitude, longitude);
+        if (revOk) {
+          toast.success("Location detected successfully!");
+          return true;
+        }
+      } catch (e) {
+        console.warn("[Checkout] Server reverse-geocode error:", e);
+      }
+      return false;
+    };
+
+    // Helper for IP fallback
+    const applyIpFallback = async (): Promise<boolean> => {
+      try {
+        const ipOk = await fetchIpGeoFallback();
+        if (ipOk) {
+          toast.success("Location detected successfully!");
+          return true;
+        }
+      } catch (e) {
+        console.warn("[Checkout] IP fallback error:", e);
+      }
+      return false;
+    };
+
+    // Fast check: if permission is already explicitly denied in browser, don't wait on GPS timeout
+    if (typeof navigator !== 'undefined' && navigator.permissions?.query) {
+      try {
+        const perm = await navigator.permissions.query({ name: 'geolocation' as any });
+        if (perm.state === 'denied') {
+          console.log('[Checkout] Geolocation permission is denied. Using network location.');
+          const ok = await applyIpFallback();
+          setLocating(false);
+          if (!ok) {
+            toast.info("Please enter your address details manually.");
+          }
+          return;
+        }
+      } catch {
+        // Permissions query unsupported — continue to standard flow
+      }
+    }
+
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      const ok = await applyIpFallback();
       setLocating(false);
-      if (ipOk) {
-        setError("Using approximate location from your network. You can edit the address below.");
-      } else {
-        setError("Geolocation is not supported by your browser. Please fill the address manually.");
+      if (!ok) {
+        toast.info("Please enter your address details manually.");
       }
       return;
     }
 
-    setLocating(true);
-    setError("");
-
-    const processCoordinates = async (latitude: number, longitude: number) => {
-      // 1. Try Google Maps reverse-geocoding if loaded
-      let googleSuccess = false;
-      try {
-        const mapsOk = await loadGoogleMaps(['places', 'geocoding']);
-        if (mapsOk) {
-          const googleObj = (window as any).google;
-          if (googleObj?.maps?.Geocoder) {
-            const geocoder = new googleObj.maps.Geocoder();
-            const geoResult = await new Promise<{ success: boolean; result?: any }>((resolve) => {
-              geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results: any, status: any) => {
-                if (status === "OK" && results && results[0]) {
-                  resolve({ success: true, result: results[0] });
-                } else {
-                  console.warn(`[Checkout] Google geocode status: ${status}`);
-                  resolve({ success: false });
-                }
-              });
-            });
-
-            if (geoResult.success && geoResult.result) {
-              const result = geoResult.result;
-              const parsed = parseAddressComponents(result.address_components || []);
-
-              if (autocompleteInputRef.current) {
-                autocompleteInputRef.current.value = result.formatted_address || "";
-              }
-
-              let streetVal = parsed.streetName || address.street;
-              if (!parsed.streetName && result.formatted_address) {
-                const parts = result.formatted_address.split(",");
-                if (parts.length > 0) {
-                  streetVal = parts[0].trim();
-                }
-              }
-
-              setAddress(prev => ({
-                ...prev,
-                street: streetVal,
-                city: parsed.city || prev.city,
-                state: parsed.state || prev.state,
-                zip: parsed.pincode || prev.zip,
-                country: parsed.country || prev.country,
-                countryCode: parsed.countryCode || prev.countryCode,
-                lat: latitude,
-                lng: longitude,
-                placeId: result.place_id || prev.placeId,
-              }));
-
-              setAddressErrors(prev => {
-                const next = { ...prev };
-                delete next.street;
-                delete next.city;
-                delete next.state;
-                delete next.zip;
-                return next;
-              });
-              googleSuccess = true;
-            }
-          }
-        }
-      } catch (gmErr: any) {
-        console.warn("[Checkout] Google Maps reverse-geocode failed:", gmErr.message || gmErr);
-        dismissGoogleMapsErrors();
-      }
-
-      if (googleSuccess) {
-        setLocating(false);
-        setError("");
-        return;
-      }
-
-      // 2. Server-side reverse geocoding via /api/geo/reverse
-      try {
-        const revOk = await reverseGeocodeServer(latitude, longitude);
-        if (revOk) {
-          setLocating(false);
-          setError("");
-          return;
-        }
-      } catch (revErr: any) {
-        console.warn("[Checkout] Server reverse-geocode failed:", revErr.message || revErr);
-      }
-
-      // 3. Last resort: IP-based geolocation + store GPS coords
-      setAddress(prev => ({ ...prev, lat: latitude, lng: longitude }));
-      const ipOk = await fetchIpGeoFallback();
-      setLocating(false);
-      if (ipOk) {
-        setError("Using approximate location from your network. You can edit the address below.");
-      } else {
-        setError("Unable to retrieve address details. Please fill manually.");
-      }
-    };
-
-    const getPosition = (highAccuracy: boolean): Promise<GeolocationPosition> => {
-      return new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: highAccuracy,
-          timeout: highAccuracy ? 10000 : 8000,
-          maximumAge: 300000,
-        });
-      });
-    };
-
+    // Try browser geolocation with a snappy 2000ms hard timer so user experience is instant
     try {
-      let pos: GeolocationPosition;
-      try {
-        pos = await getPosition(true);
-      } catch (err: any) {
-        if (err.code === err.PERMISSION_DENIED) {
-          throw err;
-        }
-        // If high accuracy times out indoors/on laptop, retry with network-based geolocation
-        console.warn("[Checkout] High accuracy GPS failed, falling back to network geolocation:", err.message);
-        pos = await getPosition(false);
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        const hardTimer = setTimeout(() => {
+          reject(new Error("GEO_TIMEOUT"));
+        }, 2000);
+
+        navigator.geolocation.getCurrentPosition(
+          (p) => {
+            clearTimeout(hardTimer);
+            resolve(p);
+          },
+          (err) => {
+            clearTimeout(hardTimer);
+            reject(err);
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 1800,
+            maximumAge: 120000,
+          }
+        );
+      });
+
+      const success = await applyCoordinates(pos.coords.latitude, pos.coords.longitude);
+      if (!success) {
+        await applyIpFallback();
       }
-      await processCoordinates(pos.coords.latitude, pos.coords.longitude);
-    } catch (err: any) {
-      console.error("Geolocation error:", err);
-      // GPS denied/timeout/error — try IP-based location as fallback
-      const ipOk = await fetchIpGeoFallback();
+    } catch (geoErr) {
+      console.log("[Checkout] Geolocation falling back to network:", geoErr);
+      const ok = await applyIpFallback();
+      if (!ok) {
+        toast.info("Please enter your delivery address details below.");
+      }
+    } finally {
       setLocating(false);
-      if (ipOk) {
-        setError("Using approximate location from your network. You can edit the address below.");
-      } else {
-        if (err.code === err.PERMISSION_DENIED) {
-          setError("Location access denied. Please fill the address manually.");
-        } else if (err.code === err.TIMEOUT) {
-          setError("Location request timed out. Please enter your address below.");
-        } else {
-          setError("Unable to detect location. Please fill the address manually.");
-        }
-      }
+      setError("");
+      dismissGoogleMapsErrors();
     }
   };
 
@@ -752,11 +823,19 @@ export default function CheckoutPage() {
           const data = await res.json();
           if (data && data[0] && data[0].Status === "Success" && data[0].PostOffice && data[0].PostOffice[0]) {
             const firstOffice = data[0].PostOffice[0];
+            const resolvedCity = firstOffice.District || firstOffice.Block || firstOffice.Name || "";
+            const resolvedState = matchIndianState(firstOffice.State) || firstOffice.State || "";
             setAddress(prev => ({
               ...prev,
-              city: firstOffice.District || firstOffice.Block || firstOffice.Name || prev.city,
-              state: firstOffice.State || prev.state,
+              city: resolvedCity || prev.city,
+              state: resolvedState || prev.state,
             }));
+            setAddressErrors(prev => {
+              const next = { ...prev };
+              if (resolvedCity) delete next.city;
+              if (resolvedState) delete next.state;
+              return next;
+            });
           }
         } catch (err) {
           console.error("Error fetching pincode details:", err);
@@ -905,12 +984,13 @@ export default function CheckoutPage() {
   }, [step, paymentMethod, total, codFee, address.name, address.email, address.phone, items.length, checkoutSessionId]);
 
   useEffect(() => {
+    if (!cartLoaded || status === "loading") return;
     if (status === "unauthenticated") {
       router.push(`/login?callbackUrl=/checkout`);
     } else if (items.length === 0 && !isOrderPlaced) {
       router.push("/cart");
     }
-  }, [items, isOrderPlaced, router, status]);
+  }, [cartLoaded, items, isOrderPlaced, router, status]);
 
   // Auto-fill address details from session once authenticated
   useEffect(() => {
@@ -2380,15 +2460,58 @@ export default function CheckoutPage() {
                       {/* Search and Geolocation Card */}
                       <div className="p-4 mb-5 rounded-2xl border border-black/[0.06] dark:border-white/[0.08] bg-white/10 dark:bg-white/[0.02] backdrop-blur-md flex flex-col gap-3 shadow-sm">
                         <div className="flex flex-row gap-2.5 w-full">
-                          {/* Autocomplete Input */}
-                          <div className="flex-1 relative flex items-center h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30">
-                            <MapPin className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
-                            <input
-                              ref={autocompleteInputRef}
-                              type="text"
-                              placeholder="Search area, locality, or landmark"
-                              className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] text-foreground placeholder:text-foreground/35 p-0"
-                            />
+                          {/* Autocomplete Input & Suggestions Dropdown */}
+                          <div ref={searchContainerRef} className="flex-1 relative">
+                            <div className="relative flex items-center h-[46px] rounded-xl px-3 transition-all duration-300 backdrop-blur-md border border-black/[0.08] dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_1px_2px_rgba(0,0,0,0.02)] focus-within:border-foreground/40 dark:focus-within:border-white/30">
+                              <MapPin className="w-4 h-4 text-foreground/40 mr-2 shrink-0" />
+                              <input
+                                ref={autocompleteInputRef}
+                                type="text"
+                                placeholder="Search area, locality, or landmark"
+                                onInput={(e) => handleSearchInput((e.target as HTMLInputElement).value)}
+                                onChange={(e) => handleSearchInput(e.target.value)}
+                                onFocus={() => {
+                                  if (suggestions.length > 0) setShowSuggestions(true);
+                                }}
+                                className="flex-1 min-w-0 h-full bg-transparent border-0 outline-none text-[15px] text-foreground placeholder:text-foreground/35 p-0"
+                              />
+                              {searchLoading && (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-foreground/40 ml-2 shrink-0" />
+                              )}
+                            </div>
+
+                            {/* Fallback Location Suggestions Dropdown */}
+                            <AnimatePresence>
+                              {showSuggestions && suggestions.length > 0 && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: -4 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -4 }}
+                                  className="absolute left-0 right-0 top-[50px] z-50 rounded-xl border border-black/10 dark:border-white/10 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl shadow-xl overflow-hidden py-1 max-h-[260px] overflow-y-auto"
+                                >
+                                  {suggestions.map((item) => (
+                                    <button
+                                      key={item.placeId}
+                                      type="button"
+                                      onClick={() => handleSelectSuggestion(item)}
+                                      className="w-full text-left px-3.5 py-2.5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-start gap-2.5 border-b last:border-b-0 border-black/[0.04] dark:border-white/[0.04]"
+                                    >
+                                      <MapPin className="w-4 h-4 text-foreground/50 shrink-0 mt-0.5" />
+                                      <div className="flex flex-col min-w-0">
+                                        <span className="text-[13px] font-semibold text-foreground truncate">
+                                          {item.mainText}
+                                        </span>
+                                        {item.secondaryText && (
+                                          <span className="text-[11px] text-foreground/50 truncate">
+                                            {item.secondaryText}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </button>
+                                  ))}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                           </div>
                         </div>
 
