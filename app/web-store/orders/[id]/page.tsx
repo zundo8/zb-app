@@ -309,9 +309,19 @@ export default function WebStoreOrderDetail() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {getPaymentBadge(order.paymentStatus, order.paymentFailureReason)}
           {getFulfillmentBadge(order.deliveryStatus || order.fulfillmentStatus)}
+          {order.trackingNumber && (
+            <a
+              href={order.trackingUrl || `https://zicabella.shiprocket.co/tracking/${order.trackingNumber}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 transition-all font-mono"
+            >
+              <Truck className="w-3.5 h-3.5" /> Track: {order.trackingNumber} <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          )}
         </div>
       </div>
 
@@ -604,6 +614,37 @@ export default function WebStoreOrderDetail() {
         {/* Right Col: Admin Controls & Modifiers */}
         <div className="space-y-8">
           
+          {/* Live Tracking Card */}
+          {order.trackingNumber && (
+            <div className="glass rounded-[2rem] border border-indigo-500/20 bg-indigo-500/[0.03] p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Live Shipment</h4>
+                    <p className="text-[11px] text-indigo-400 font-mono font-bold mt-0.5">{order.trackingNumber}</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold uppercase font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  {order.deliveryStatus || order.fulfillmentStatus}
+                </span>
+              </div>
+              {order.trackingUrl && (
+                <a
+                  href={order.trackingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-4 rounded-xl font-bold text-xs bg-indigo-600 text-white hover:bg-indigo-500 transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20"
+                >
+                  <span>Track on Courier Portal</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </div>
+          )}
+
           {/* Form container */}
           <div className="glass rounded-[2rem] border border-foreground/5 p-6 md:p-8 space-y-6">
             <h3 className="text-base font-bold text-foreground font-inter flex items-center gap-2">
@@ -706,31 +747,57 @@ export default function WebStoreOrderDetail() {
               <h3 className="text-sm font-bold text-foreground font-inter flex items-center gap-2">
                 <FileText className="w-4 h-4 text-indigo-400" /> Integration Data
               </h3>
-              <button
-                type="button"
-                onClick={async () => {
-                  setUpdating(true);
-                  try {
-                    const res = await fetch("/api/web-store/orders/sync-razorpay", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ orderIds: [order.id] }),
-                    });
-                    if (!res.ok) throw new Error("Sync failed");
-                    toast.success("Razorpay payment status synced!");
-                    fetchOrderDetail();
-                  } catch (e: unknown) {
-                    const msg = e instanceof Error ? e.message : "Failed to sync payment status";
-                    toast.error(msg);
-                  } finally {
-                    setUpdating(false);
-                  }
-                }}
-                disabled={updating}
-                className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 transition-all disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3 h-3 ${updating ? "animate-spin" : ""}`} /> Sync Razorpay
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setUpdating(true);
+                    try {
+                      const res = await fetch(`/api/web-store/orders/${order.id}/sync-shopify`, {
+                        method: "POST",
+                      });
+                      const result = await res.json();
+                      if (!res.ok) throw new Error(result.error || "Sync failed");
+                      toast.success(result.message || "Shopify tracking & status synced!");
+                      fetchOrderDetail();
+                    } catch (e: unknown) {
+                      const msg = e instanceof Error ? e.message : "Failed to sync with Shopify";
+                      toast.error(msg);
+                    } finally {
+                      setUpdating(false);
+                    }
+                  }}
+                  disabled={updating}
+                  className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${updating ? "animate-spin" : ""}`} /> Sync Shopify
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setUpdating(true);
+                    try {
+                      const res = await fetch("/api/web-store/orders/sync-razorpay", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ orderIds: [order.id] }),
+                      });
+                      if (!res.ok) throw new Error("Sync failed");
+                      toast.success("Razorpay payment status synced!");
+                      fetchOrderDetail();
+                    } catch (e: unknown) {
+                      const msg = e instanceof Error ? e.message : "Failed to sync payment status";
+                      toast.error(msg);
+                    } finally {
+                      setUpdating(false);
+                    }
+                  }}
+                  disabled={updating}
+                  className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${updating ? "animate-spin" : ""}`} /> Sync Razorpay
+                </button>
+              </div>
             </div>
             
             <div className="space-y-3 pt-2 text-[11px] font-mono text-foreground/60 leading-relaxed break-all">
@@ -748,6 +815,24 @@ export default function WebStoreOrderDetail() {
                   {isCOD ? "Cash on Delivery" : "Razorpay (Prepaid)"}
                 </span>
               </div>
+              {order.shopifyOrderId && (
+                <div>
+                  <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Shopify Order ID</span>
+                  <span className="text-emerald-400 font-bold">{order.shopifyOrderId}</span>
+                  {order.shopifyOrderName && (
+                    <span className="ml-2 text-foreground/50">({order.shopifyOrderName})</span>
+                  )}
+                </div>
+              )}
+              {order.deliveryStatus && (
+                <div>
+                  <span className="text-foreground/45 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Delivery Status</span>
+                  <span className="text-emerald-400 font-bold uppercase">{order.deliveryStatus}</span>
+                  {order.deliveredAt && (
+                    <span className="ml-2 text-foreground/50">on {formatDate(order.deliveredAt)}</span>
+                  )}
+                </div>
+              )}
               {order.paymentFailureReason && (
                 <div>
                   <span className="text-rose-400/80 font-sans font-bold uppercase tracking-wider block text-[9px] mb-0.5">Payment Failure Reason</span>

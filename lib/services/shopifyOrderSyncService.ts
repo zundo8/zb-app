@@ -1,5 +1,5 @@
 import prisma from '@/lib/db';
-import { createOrder, createCustomer, findShopifyOrderByInternalNumber } from '@/lib/shopify-admin';
+import { createOrder, createCustomer, findShopifyOrderByInternalNumber, fetchOrder } from '@/lib/shopify-admin';
 
 export interface SyncOptions {
   extraTags?: string[];
@@ -12,6 +12,18 @@ export interface SyncResult {
   shopifyOrderName?: string;
   error?: string;
   skippedDuplicate?: boolean;
+}
+
+export interface PullSyncResult {
+  success: boolean;
+  order?: any;
+  webStoreOrder?: any;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  courier?: string | null;
+  deliveryStatus?: string;
+  fulfillmentStatus?: string;
+  error?: string;
 }
 
 /**
@@ -415,3 +427,273 @@ export async function syncOrderToShopify(orderId: string, options?: SyncOptions)
     } catch (_) {}
   }
 }
+
+/**
+ * Pulls the latest order details and fulfillments/tracking from Shopify Admin API
+ * and synchronizes them to:
+ * 1. Master Order (fulfillmentStatus, deliveryStatus, delhivery_awb, tracking_status, deliveredAt)
+ * 2. Shipment table (upserts shipments with trackingNumber, courier, trackingUrl, status)
+ * 3. WebStoreOrder (fulfillmentStatus, deliveryStatus, trackingNumber, trackingUrl, deliveredAt, shopifyOrderId, shopifyOrderName)
+ */
+export async function pullAndSyncShopifyOrder(
+  shopifyOrderIdOrRecord: string | any,
+  options?: {
+    localOrderId?: string;
+    webStoreOrderId?: string;
+    fallbackOrderNumber?: string;
+  }
+): Promise<PullSyncResult> {
+  try {
+    let o: any = null;
+
+    if (typeof shopifyOrderIdOrRecord === 'string') {
+      const idStr = shopifyOrderIdOrRecord.trim();
+      if (/^\d+$/.test(idStr)) {
+        o = await fetchOrder(idStr);
+      } else if (idStr.startsWith('#') || idStr.toUpperCase().startsWith('ZB')) {
+        const found = await findShopifyOrderByInternalNumber(idStr);
+        if (found?.id) {
+          o = await fetchOrder(String(found.id));
+        }
+      }
+      if (!o && options?.fallbackOrderNumber) {
+        const found = await findShopifyOrderByInternalNumber(options.fallbackOrderNumber);
+        if (found?.id) {
+          o = await fetchOrder(String(found.id));
+        }
+      }
+    } else if (shopifyOrderIdOrRecord && typeof shopifyOrderIdOrRecord === 'object') {
+      o = shopifyOrderIdOrRecord;
+    }
+
+    if (!o || !o.id) {
+      return { success: false, error: 'Shopify order not found or invalid' };
+    }
+
+    const shopifyOrderId = String(o.id);
+    const shopifyOrderName = o.name || null;
+
+    // Extract universal internal order number
+    let extractedNumber = options?.fallbackOrderNumber || '';
+    if (!extractedNumber) {
+      const tagMatch = (o.tags || '').match(/zb-order-(ZB(?:PF|PP|CX|XX)?\d+|ZB-\d{4}-\d{5})/i);
+      if (tagMatch) extractedNumber = tagMatch[1];
+    }
+    if (!extractedNumber && o.note_attributes) {
+      const attr = o.note_attributes.find((na: any) => na.name === 'internal_order_number');
+      if (attr && typeof attr.value === 'string' && attr.value.startsWith('ZB')) {
+        extractedNumber = attr.value;
+      }
+    }
+
+    // Determine delivery & fulfillment status
+    let fulfillmentStatus = o.fulfillment_status || 'unfulfilled';
+    let deliveryStatus = 'pending';
+    const lowerTags = (o.tags || '').toLowerCase();
+
+    if (fulfillmentStatus === 'fulfilled') {
+      deliveryStatus = 'shipped';
+    }
+    if (lowerTags.includes('delivered') || lowerTags.includes('shipped_successfully')) {
+      deliveryStatus = 'delivered';
+    }
+
+    if (o.fulfillments && Array.isArray(o.fulfillments)) {
+      for (const f of o.fulfillments) {
+        const fStatus = (f.shipment_status || '').toLowerCase();
+        if (fStatus === 'delivered' || fStatus === 'success') {
+          deliveryStatus = 'delivered';
+          break;
+        } else if (fStatus === 'out_for_delivery') {
+          deliveryStatus = 'out_for_delivery';
+          break;
+        }
+      }
+    }
+
+    if (o.cancelled_at) {
+      fulfillmentStatus = 'cancelled';
+      deliveryStatus = 'cancelled';
+    }
+
+    // Extract primary tracking details
+    let primaryTrackingNumber: string | null = null;
+    let primaryCourier: string | null = null;
+    let primaryTrackingUrl: string | null = null;
+
+    if (Array.isArray(o.fulfillments) && o.fulfillments.length > 0) {
+      for (const f of o.fulfillments) {
+        const tn = f.tracking_number || (Array.isArray(f.tracking_numbers) ? f.tracking_numbers[0] : null);
+        if (tn) {
+          primaryTrackingNumber = String(tn);
+          primaryCourier = f.tracking_company || f.courier || 'Standard Express';
+          primaryTrackingUrl = f.tracking_url || (Array.isArray(f.tracking_urls) ? f.tracking_urls[0] : null)
+            || `https://zicabella.shiprocket.co/tracking/${tn}`;
+          break;
+        }
+      }
+    }
+
+    // 1. Locate master Order
+    let order: any = null;
+    if (options?.localOrderId) {
+      order = await prisma.order.findUnique({
+        where: { id: options.localOrderId },
+        include: { shipments: true },
+      }).catch(() => null);
+    }
+    if (!order) {
+      order = await prisma.order.findUnique({
+        where: { shopifyOrderId },
+        include: { shipments: true },
+      }).catch(() => null);
+    }
+    if (!order && extractedNumber) {
+      order = await prisma.order.findUnique({
+        where: { internalOrderNumber: extractedNumber },
+        include: { shipments: true },
+      }).catch(() => null);
+    }
+
+    // 2. Locate WebStoreOrder
+    let webStoreOrder: any = null;
+    if (options?.webStoreOrderId) {
+      webStoreOrder = await prisma.webStoreOrder.findUnique({
+        where: { id: options.webStoreOrderId }
+      }).catch(() => null);
+    }
+    if (!webStoreOrder && extractedNumber) {
+      webStoreOrder = await prisma.webStoreOrder.findUnique({
+        where: { orderNumber: extractedNumber }
+      }).catch(() => null);
+    }
+    if (!webStoreOrder && order?.internalOrderNumber) {
+      webStoreOrder = await prisma.webStoreOrder.findUnique({
+        where: { orderNumber: order.internalOrderNumber }
+      }).catch(() => null);
+    }
+    if (!webStoreOrder) {
+      webStoreOrder = await prisma.webStoreOrder.findFirst({
+        where: {
+          OR: [
+            { shopifyOrderId },
+            { razorpayOrderId: shopifyOrderId },
+            { notes: { contains: `Shopify: ${shopifyOrderId}` } },
+            ...(order?.id ? [{ notes: { contains: `Local: ${order.id}` } }] : [])
+          ]
+        }
+      }).catch(() => null);
+    }
+
+    // 3. Upsert Shipments if master Order exists
+    if (order && Array.isArray(o.fulfillments)) {
+      for (const f of o.fulfillments) {
+        const tn = f.tracking_number || (Array.isArray(f.tracking_numbers) ? f.tracking_numbers[0] : null);
+        if (tn) {
+          const courier = f.tracking_company || f.courier || 'Standard Express';
+          const trackingUrl = f.tracking_url || (Array.isArray(f.tracking_urls) ? f.tracking_urls[0] : null)
+            || `https://zicabella.shiprocket.co/tracking/${tn}`;
+          const fStatus = (f.shipment_status || '').toLowerCase() === 'delivered' ? 'delivered' : deliveryStatus;
+
+          await prisma.shipment.upsert({
+            where: { awb: String(tn) },
+            create: {
+              orderId: order.id,
+              awb: String(tn),
+              trackingNumber: String(tn),
+              courier,
+              status: fStatus,
+              trackingUrl,
+              type: 'outbound',
+            },
+            update: {
+              courier,
+              status: fStatus,
+              trackingUrl,
+            }
+          }).catch((e: any) => console.error('[ShopifyOrderSync] Shipment upsert error:', e.message));
+        }
+      }
+    }
+
+    // 4. Update master Order
+    if (order) {
+      const discountAmount = webStoreOrder?.discountAmount
+        ? Number(webStoreOrder.discountAmount)
+        : (order.discountAmount || 0);
+      const discountCode = webStoreOrder?.discountCode
+        ? webStoreOrder.discountCode
+        : (order.discountCode || null);
+
+      let finalTotalPrice = parseFloat(o.total_price || '0');
+      const finalSubtotalPrice = o.total_line_items_price
+        ? parseFloat(o.total_line_items_price)
+        : (o.subtotal_price ? parseFloat(o.subtotal_price) : finalTotalPrice);
+
+      if (discountAmount > 0 && Math.abs(finalTotalPrice - finalSubtotalPrice) < 0.01) {
+        finalTotalPrice = finalSubtotalPrice - discountAmount;
+      }
+
+      order = await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          shopifyOrderId,
+          shopifyOrderName: shopifyOrderName || order.shopifyOrderName,
+          shopifySyncStatus: 'synced',
+          shopifySyncError: null,
+          fulfillmentStatus,
+          deliveryStatus,
+          delhivery_awb: primaryTrackingNumber || order.delhivery_awb,
+          tracking_status: deliveryStatus,
+          ...(deliveryStatus === 'delivered' ? { deliveredAt: order.deliveredAt || new Date() } : {}),
+          totalPrice: finalTotalPrice,
+          subtotalPrice: finalSubtotalPrice,
+          discountAmount,
+          discountCode,
+          ...(o.tags ? { tags: o.tags } : {}),
+        },
+        include: { shipments: true }
+      });
+    }
+
+    // 5. Update WebStoreOrder
+    if (webStoreOrder) {
+      const wsData: any = {
+        shopifyOrderId,
+        shopifyOrderName: shopifyOrderName || webStoreOrder.shopifyOrderName,
+        fulfillmentStatus,
+        deliveryStatus,
+      };
+
+      if (primaryTrackingNumber) wsData.trackingNumber = primaryTrackingNumber;
+      if (primaryTrackingUrl) wsData.trackingUrl = primaryTrackingUrl;
+      if (deliveryStatus === 'delivered') wsData.deliveredAt = webStoreOrder.deliveredAt || new Date();
+
+      if (webStoreOrder.notes && !webStoreOrder.notes.includes(shopifyOrderId)) {
+        wsData.notes = `${webStoreOrder.notes} | Shopify: ${shopifyOrderId}`;
+      } else if (!webStoreOrder.notes) {
+        wsData.notes = `Shopify: ${shopifyOrderId}${order ? ` | Local: ${order.id}` : ''}`;
+      }
+
+      webStoreOrder = await prisma.webStoreOrder.update({
+        where: { id: webStoreOrder.id },
+        data: wsData,
+      });
+    }
+
+    return {
+      success: true,
+      order,
+      webStoreOrder,
+      trackingNumber: primaryTrackingNumber || order?.delhivery_awb || webStoreOrder?.trackingNumber || null,
+      trackingUrl: primaryTrackingUrl || webStoreOrder?.trackingUrl || null,
+      courier: primaryCourier || 'Standard Express',
+      deliveryStatus,
+      fulfillmentStatus,
+    };
+  } catch (err: any) {
+    console.error('[ShopifyOrderSync] pullAndSyncShopifyOrder error:', err);
+    return { success: false, error: err.message };
+  }
+}
+

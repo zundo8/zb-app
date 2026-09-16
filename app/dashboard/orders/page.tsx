@@ -15,7 +15,9 @@ import {
   ArrowRight,
   Smartphone,
   ShoppingBag,
-  Zap
+  Zap,
+  Truck,
+  ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatExactDateTime, extractItemVariantAndSize } from "@/lib/utils";
@@ -49,7 +51,19 @@ interface Order {
     phone: string | null;
   };
   items: OrderItem[];
-  shipments: unknown[];
+  shipments: Array<{
+    id?: string;
+    awb?: string | null;
+    trackingNumber?: string | null;
+    courier?: string | null;
+    status?: string;
+    trackingUrl?: string | null;
+  }>;
+  delhivery_awb?: string | null;
+  tracking_status?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  courier?: string | null;
   orderType?: string;
   internalOrderNumber?: string | null;
   displayOrderNumber?: string | null;
@@ -533,6 +547,42 @@ export default function OrdersPage() {
 
                   <div className="col-span-2">
                     <StatusBadge status={order.status === 'cancelled' ? 'cancelled' : (order.deliveryStatus || order.fulfillmentStatus || 'unfulfilled')} />
+                    {(() => {
+                      const shipment = order.shipments?.[0];
+                      const awb = order.trackingNumber || shipment?.trackingNumber || shipment?.awb || order.delhivery_awb;
+                      const trackUrl = order.trackingUrl || shipment?.trackingUrl || (awb ? `https://zicabella.shiprocket.co/tracking/${awb}` : null);
+                      const courierName = order.courier || shipment?.courier || (order.delhivery_awb ? 'Delhivery' : null);
+
+                      if (!awb) return null;
+
+                      return (
+                        <div className="mt-1.5 flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
+                          {trackUrl ? (
+                            <a
+                              href={trackUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-indigo-400 hover:text-indigo-300 hover:underline transition-colors"
+                              title={`Track via ${courierName || 'Courier'}`}
+                            >
+                              <Truck className="w-2.5 h-2.5 shrink-0 text-indigo-400" />
+                              <span className="truncate max-w-[110px]">{awb}</span>
+                              <ExternalLink className="w-2 h-2 shrink-0 opacity-70" />
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-mono text-foreground/50">
+                              <Truck className="w-2.5 h-2.5 shrink-0 text-foreground/40" />
+                              <span className="truncate max-w-[110px]">{awb}</span>
+                            </span>
+                          )}
+                          {courierName && (
+                            <span className="text-[8px] text-foreground/40 font-medium truncate max-w-[110px]">
+                              {courierName}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="col-span-2 text-right flex items-center justify-end gap-6">

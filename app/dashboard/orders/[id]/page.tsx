@@ -57,6 +57,7 @@ interface OrderItem {
 interface Shipment {
   id: string;
   awb: string | null;
+  trackingNumber?: string | null;
   courier: string | null;
   status: string;
   trackingUrl: string | null;
@@ -469,9 +470,37 @@ export default function OrderDetailPage() {
               {order.shopifyOrderId && !order.shopifyOrderId.startsWith('#') && (
                 <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                   <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Shopify Synced: {order.shopifyOrderId}</span>
+                   <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">
+                     Shopify: {order.shopifyOrderName || order.shopifyOrderId}
+                   </span>
                 </div>
               )}
+              {(() => {
+                const s = order.shipments?.[0];
+                const awb = s?.trackingNumber || s?.awb || order.delhivery_awb;
+                const courier = s?.courier || (order.delhivery_awb ? 'Delhivery' : 'Courier');
+                const trackUrl = s?.trackingUrl || (awb ? `https://zicabella.shiprocket.co/tracking/${awb}` : null);
+                if (!awb) return null;
+                return (
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 shadow-sm">
+                    <Truck className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest font-mono">
+                      {courier}: {awb}
+                    </span>
+                    {trackUrl && (
+                      <a
+                        href={trackUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-indigo-400 hover:text-indigo-300 ml-0.5 inline-flex items-center"
+                        title="Open Live Tracking"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -755,20 +784,73 @@ export default function OrderDetailPage() {
           </div>
 
           {/* Logistics Terminal */}
-          <div className={`p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-10 ${(order.status === 'cancelled' || order.status === 'payment_failed') ? 'opacity-40 pointer-events-none grayscale' : ''}`}>
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <h3 className="text-lg font-semibold text-foreground tracking-tight">Logistics Command</h3>
-                <p className="text-[11px] text-foreground/20 font-bold uppercase tracking-widest">Delhivery B2C Fulfillment Hub</p>
-              </div>
-              {order.delhivery_awb && (
-                <div className="px-5 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[12px] font-mono font-bold text-blue-500">
-                  {order.delhivery_awb}
-                </div>
-              )}
-            </div>
+          <div className={`p-10 rounded-[40px] bg-foreground/[0.02] border border-foreground/5 space-y-8 ${(order.status === 'cancelled' || order.status === 'payment_failed') ? 'opacity-40 pointer-events-none grayscale' : ''}`}>
+            {(() => {
+              const activeShipment = (order as any).shipments?.[0];
+              const awb = activeShipment?.trackingNumber || activeShipment?.awb || order.delhivery_awb;
+              const courier = activeShipment?.courier || (order.delhivery_awb ? 'Delhivery Logistics' : 'Courier Logistics Hub');
+              const trackingUrl = activeShipment?.trackingUrl || (awb ? `https://zicabella.shiprocket.co/tracking/${awb}` : null);
+              const isNonDelhivery = courier && !courier.toLowerCase().includes('delhivery');
 
-            <DelhiveryActions order={order as any} onRefresh={() => fetchOrder(true)} />
+              return (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-semibold text-foreground tracking-tight">Logistics Command</h3>
+                      <p className="text-[11px] text-foreground/40 font-bold uppercase tracking-widest flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5 text-indigo-400" />
+                        {courier}
+                      </p>
+                    </div>
+                    {awb && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[12px] font-mono font-bold text-blue-500 flex items-center gap-2">
+                          <ScanLine className="w-3.5 h-3.5" />
+                          <span>{awb}</span>
+                        </div>
+                        {trackingUrl && (
+                          <a
+                            href={trackingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 rounded-xl bg-foreground text-background hover:opacity-90 transition-all text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-foreground/5"
+                          >
+                            <span>Track Shipment</span>
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Active Shipment Status Banner */}
+                  {awb && (
+                    <div className="p-5 rounded-2xl bg-foreground/[0.03] border border-foreground/5 flex items-center justify-between">
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-11 h-11 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                          <Package className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Fulfillment Courier</p>
+                          <p className="text-sm font-semibold text-foreground">{courier}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Delivery Status</p>
+                        <p className="text-sm font-bold uppercase text-emerald-400 font-mono">
+                          {activeShipment?.status || order.deliveryStatus || 'SHIPPED'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* If courier is Delhivery or no AWB yet, render Delhivery operations */}
+                  {(!awb || !isNonDelhivery) && (
+                    <DelhiveryActions order={order as any} onRefresh={() => fetchOrder(true)} />
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
 

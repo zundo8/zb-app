@@ -137,9 +137,8 @@ export async function GET(req: Request) {
           },
           items: true,
           shipments: {
-            where: { type: 'outbound' },
             orderBy: { createdAt: 'desc' },
-            take: 1
+            take: 2
           }
         },
         orderBy: { createdAt: 'desc' },
@@ -236,6 +235,11 @@ export async function GET(req: Request) {
       const shopifyIdStr = order.shopifyOrderId as string;
       const displayOrderNumber = (order.internalOrderNumber as string) || (order.shopifyOrderName as string) || (shopifyIdStr && !shopifyIdStr.startsWith('app_') ? `#${shopifyIdStr.replace('#', '')}` : null) || `#${orderIdStr.slice(-6).toUpperCase()}`;
 
+      const latestShipment = (order.shipments as any[])?.[0];
+      const trackingNumber = latestShipment?.trackingNumber || latestShipment?.awb || (order.delhivery_awb as string) || (webStoreOrder?.trackingNumber as string) || null;
+      const trackingUrl = latestShipment?.trackingUrl || (webStoreOrder?.trackingUrl as string) || (trackingNumber ? `https://zicabella.shiprocket.co/tracking/${trackingNumber}` : null);
+      const courier = latestShipment?.courier || (order.delhivery_awb ? 'Delhivery' : (trackingNumber ? 'Standard Express' : null));
+
       return {
         ...order,
         displayOrderNumber,
@@ -244,7 +248,10 @@ export async function GET(req: Request) {
         paymentMethod,
         paymentStatus,
         paidAmount,
-        discountAmount
+        discountAmount,
+        trackingNumber,
+        trackingUrl,
+        courier,
       };
     });
 

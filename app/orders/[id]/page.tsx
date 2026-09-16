@@ -445,40 +445,52 @@ export default function OrderDetailsPage() {
         )}
 
         {/* SHIPMENT DETAILS CARD */}
-        {order.shipments?.[0] && (
-          <div className="mb-8 p-5 rounded-3xl glass-panel overflow-hidden relative group">
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-foreground/0 via-foreground/10 to-foreground/0 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="flex items-start justify-between mb-6">
-                <div className="space-y-1">
-                    <p className="text-[7px] font-black uppercase tracking-[0.3em] text-foreground/40">Live Shipment</p>
-                    <h3 className="text-[12px] font-heading tracking-widest text-foreground/80 uppercase">
-                        {order.shipments[0].courier || 'Standard'} Express
-                    </h3>
-                </div>
-                <div className="p-2 bg-foreground/10 rounded-xl">
-                   <Truck className="w-4 h-4 text-foreground/60" />
-                </div>
-            </div>
+        {(() => {
+          const s = order.shipments?.[0];
+          const awb = s?.trackingNumber || s?.awb || order.trackingNumber || order.delhivery_awb;
+          const courier = s?.courier || order.courier || (order.delhivery_awb ? 'Delhivery' : 'Standard Express');
+          const status = s?.status || order.deliveryStatus || order.fulfillmentStatus || 'Shipped';
+          const trackUrl = s?.trackingUrl || order.trackingUrl || (awb ? `https://zicabella.shiprocket.co/tracking/${awb}` : null);
 
-            <div className="grid grid-cols-2 gap-8 mb-4">
-                <div>
-                   <p className="text-[6.5px] font-black uppercase tracking-widest text-foreground/15 mb-1.5 font-mono">Tracking No.</p>
-                   <p className="text-[10px] font-mono text-foreground/60 font-medium uppercase">{order.shipments[0].trackingNumber}</p>
-                </div>
-                <div>
-                   <p className="text-[6.5px] font-black uppercase tracking-widest text-foreground/15 mb-1.5 font-mono">Status</p>
-                   <p className="text-[10px] text-foreground/60 font-medium">{order.deliveryStatus}</p>
-                </div>
-            </div>
+          if (!awb) return null;
 
-            <button 
-                onClick={() => window.open(`https://www.shiprocket.in/shipment-tracking/?awb=${order.shipments[0].trackingNumber}`, '_blank')}
-                className="w-full py-3 rounded-2xl glass-button text-[8px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2"
-            >
-                External Track <ExternalLink className="w-3 h-3 opacity-30" />
-            </button>
-          </div>
-        )}
+          return (
+            <div className="mb-8 p-5 rounded-3xl glass-panel overflow-hidden relative group">
+              <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-foreground/0 via-foreground/10 to-foreground/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="flex items-start justify-between mb-6">
+                  <div className="space-y-1">
+                      <p className="text-[7px] font-black uppercase tracking-[0.3em] text-foreground/40">Live Shipment</p>
+                      <h3 className="text-[12px] font-heading tracking-widest text-foreground/80 uppercase">
+                          {courier}
+                      </h3>
+                  </div>
+                  <div className="p-2 bg-foreground/10 rounded-xl">
+                     <Truck className="w-4 h-4 text-foreground/60" />
+                  </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-8 mb-4">
+                  <div>
+                     <p className="text-[6.5px] font-black uppercase tracking-widest text-foreground/15 mb-1.5 font-mono">Tracking No.</p>
+                     <p className="text-[10px] font-mono text-foreground/60 font-medium uppercase">{awb}</p>
+                  </div>
+                  <div>
+                     <p className="text-[6.5px] font-black uppercase tracking-widest text-foreground/15 mb-1.5 font-mono">Status</p>
+                     <p className="text-[10px] text-foreground/60 font-medium uppercase">{status}</p>
+                  </div>
+              </div>
+
+              {trackUrl && (
+                <button 
+                    onClick={() => window.open(trackUrl, '_blank')}
+                    className="w-full py-3 rounded-2xl glass-button text-[8px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2"
+                >
+                    External Track <ExternalLink className="w-3 h-3 opacity-30" />
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Reverse Shipment (Return Pickup) */}
         {order.shipments?.find((s: any) => String(s.awb || s.trackingNumber || '').startsWith('ZBRET') || String(s.status || '').includes('pickup')) && (

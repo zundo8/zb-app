@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/db';
-import { syncOrderToShopify } from '@/lib/services/shopifyOrderSyncService';
+import { syncOrderToShopify, pullAndSyncShopifyOrder } from '@/lib/services/shopifyOrderSyncService';
 import { extractSizeFromVariant } from '@/lib/utils';
 
 /**
@@ -150,135 +150,22 @@ export async function POST(
           return NextResponse.json({ success: false, error: 'Shopify order not found for pulling updates' }, { status: 404 });
         }
 
-        // Determine delivery status
-        let deliveryStatus = 'pending';
-        const lowerTags = (o.tags || '').toLowerCase();
-        
-        if (o.fulfillment_status === 'fulfilled') {
-          deliveryStatus = 'shipped';
-        }
-
-        if (lowerTags.includes('delivered') || lowerTags.includes('shipped_successfully')) {
-          deliveryStatus = 'delivered';
-        }
-        
-        if (o.fulfillments && Array.isArray(o.fulfillments)) {
-          for (const f of o.fulfillments) {
-            const fStatus = (f.shipment_status || '').toLowerCase();
-            if (fStatus === 'delivered' || fStatus === 'shipped' || fStatus === 'success') {
-              deliveryStatus = 'delivered';
-              break;
-            } else if (fStatus === 'out_for_delivery') {
-              deliveryStatus = 'out_for_delivery';
-              break;
-            }
-          }
-        }
-
-        const isMobileAppOrder = lowerTags.includes('apporder') || lowerTags.includes('mobileapp') || order.orderType === 'MOBILE_APP';
-        let finalStatus = isMobileAppOrder ? 'approved' : 'active';
-        
-        if (o.cancelled_at) {
-          finalStatus = 'cancelled';
-          deliveryStatus = 'cancelled';
-          o.fulfillment_status = 'cancelled';
-        }
-
-        // Resolve WebStoreOrder if any
-        const tagsArray = (o.tags || '').split(',').map((t: string) => t.trim());
-        const orderNumberTag = tagsArray.find((t: string) => t.startsWith('zb-order-'));
-        const universalOrderNumber = orderNumberTag ? orderNumberTag.replace('zb-order-', '') : null;
-
-        let webStoreOrder = null;
-        if (universalOrderNumber) {
-          webStoreOrder = await prisma.webStoreOrder.findUnique({
-            where: { orderNumber: universalOrderNumber }
-          });
-        }
-        if (!webStoreOrder) {
-          webStoreOrder = await prisma.webStoreOrder.findFirst({
-            where: {
-              OR: [
-                { razorpayOrderId: String(o.id) },
-                { notes: { contains: `Shopify: ${o.id}` } }
-              ]
-            }
-          });
-        }
-
-        // Resolve canonical payment method and status
-        let derivedPaymentMethod = 'razorpay';
-        let derivedPaymentStatus = o.financial_status || 'pending';
-
-        if (webStoreOrder) {
-          derivedPaymentMethod = webStoreOrder.paymentMethod;
-          derivedPaymentStatus = webStoreOrder.paymentStatus;
-        } else {
-          const gatewayNames = (o.payment_gateway_names || []).map((g: any) => String(g).toLowerCase());
-          const rawGateway = String(o.gateway || '').toLowerCase();
-          const hasCodGateway = gatewayNames.includes('manual') || 
-            gatewayNames.includes('cod') || 
-            gatewayNames.includes('cash on delivery (cod)') || 
-            rawGateway === 'manual' || 
-            rawGateway === 'cod' || 
-            rawGateway.includes('cash on delivery');
-
-          const isCodOrder = hasCodGateway || 
-            lowerTags.includes('cod') || 
-            (o.note || '').toLowerCase().includes('cod');
-
-          derivedPaymentMethod = isCodOrder ? 'COD' : 'razorpay';
-          derivedPaymentStatus = isCodOrder ? 'pending' : (o.financial_status || 'pending');
-        }
-
-        const finalPaymentMethod = order.paymentMethod && 
-          (order.paymentMethod === 'COD' || order.paymentMethod === 'razorpay')
-          ? order.paymentMethod
-          : derivedPaymentMethod;
-
-        const finalPaymentStatus = webStoreOrder?.paymentMethod === 'razorpay' ? 'paid' : derivedPaymentStatus;
-
-        const discountAmount = webStoreOrder?.discountAmount 
-          ? Number(webStoreOrder.discountAmount) 
-          : (order.discountAmount || 0);
-        const discountCode = webStoreOrder?.discountCode 
-          ? webStoreOrder.discountCode 
-          : (order.discountCode || null);
-
-        let finalTotalPrice = parseFloat(o.total_price || '0');
-        const finalSubtotalPrice = o.total_line_items_price 
-          ? parseFloat(o.total_line_items_price) 
-          : (o.subtotal_price ? parseFloat(o.subtotal_price) : finalTotalPrice);
-
-        // Auto-correct undiscounted totalPrice synced from Shopify
-        if (discountAmount > 0 && Math.abs(finalTotalPrice - finalSubtotalPrice) < 0.01) {
-          finalTotalPrice = finalSubtotalPrice - discountAmount;
-        }
-
-        // Update local Order record
-        const updatedOrder = await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            status: finalStatus,
-            totalPrice: finalTotalPrice,
-            subtotalPrice: finalSubtotalPrice,
-            totalTax: o.total_tax ? parseFloat(o.total_tax) : null,
-            currency: o.currency || 'INR',
-            paymentStatus: finalPaymentStatus,
-            paymentMethod: finalPaymentMethod,
-            fulfillmentStatus: o.fulfillment_status || 'unfulfilled',
-            deliveryStatus: deliveryStatus,
-            shippingAddress: o.shipping_address ? JSON.stringify(o.shipping_address) : null,
-            billingAddress: o.billing_address ? JSON.stringify(o.billing_address) : null,
-            note: o.note || null,
-            tags: o.tags || null,
-            razorpayOrderId: webStoreOrder?.razorpayOrderId || order.razorpayOrderId || null,
-            razorpayPaymentId: webStoreOrder?.razorpayPaymentId || order.razorpayPaymentId || null,
-            internalOrderNumber: webStoreOrder?.orderNumber || order.internalOrderNumber || universalOrderNumber || null,
-            discountAmount: discountAmount,
-            discountCode: discountCode,
-          }
+        // Use unified pull & sync service to sync fulfillments, tracking, shipments, and WebStoreOrder
+        const syncResult = await pullAndSyncShopifyOrder(o, {
+          localOrderId: order.id,
+          fallbackOrderNumber: order.internalOrderNumber || undefined,
         });
+
+        if (!syncResult.success) {
+          throw new Error(syncResult.error || 'Failed to sync Shopify order tracking');
+        }
+
+        const updatedOrder = syncResult.order || (await prisma.order.findUnique({
+          where: { id: order.id },
+          include: { shipments: true },
+        }));
+
+        const finalStatus = updatedOrder.status;
 
         // Trigger refund logic if status became cancelled
         if (finalStatus === 'cancelled' && order.status !== 'cancelled') {
