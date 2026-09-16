@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { sendMail, buildSupportEmailHtml } from '@/lib/mailer';
 import { resolvePrincipal } from '@/lib/ai/principal';
 import { processSupportTicketAIReply } from '@/lib/ai/supportAgent';
+import { resolveEventGeo } from '@/lib/resolve-event-geo';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ export async function POST(req: NextRequest) {
   try {
     const principal = await resolvePrincipal(req);
     const body = await req.json();
-    const { ticketId, content } = body;
+    const { ticketId, content, clientGeo } = body;
 
     if (!ticketId || !content) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -48,6 +49,8 @@ export async function POST(req: NextRequest) {
       senderName = body.senderName || ticket.customer?.name || 'Customer';
     }
 
+    const geo = senderType === 'USER' ? await resolveEventGeo(req, clientGeo) : null;
+
     const message = await prisma.supportMessage.create({
       data: {
         ticketId,
@@ -55,6 +58,19 @@ export async function POST(req: NextRequest) {
         senderType,
         senderId,
         senderName,
+        ...(geo && senderType === 'USER'
+          ? {
+              ip: geo.ip,
+              geoSource: geo.geoSource,
+              city: geo.city,
+              region: geo.region,
+              country: geo.country,
+              countryCode: geo.countryCode,
+              zip: geo.zip,
+              latitude: geo.latitude,
+              longitude: geo.longitude,
+            }
+          : {}),
       },
     });
 

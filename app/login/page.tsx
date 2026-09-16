@@ -410,12 +410,20 @@ export default function LoginPage() {
     }
     const fullPhone = country.code + cleaned;
 
+    let clientGeo = "";
+    try {
+      if (typeof window !== "undefined") {
+        clientGeo = sessionStorage.getItem("zb_geo_data") || "";
+      }
+    } catch {}
+
     try {
       const result = await signIn("otp", { 
         phone: fullPhone, 
         otp: finalOtp, 
         name: (name || "").trim(),
         ip: getClientCookie("zb_client_ip") || "", 
+        clientGeo: clientGeo || "",
         redirect: false, 
         callbackUrl 
       });

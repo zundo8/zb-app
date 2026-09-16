@@ -27,8 +27,10 @@ function checkRateLimit(phone: string): boolean {
 }
 
 import { checkRateLimit as checkIpRateLimit, rateLimit } from "@/lib/rate-limit";
+import { resolveEventGeo } from "@/lib/resolve-event-geo";
 
 export async function POST(req: Request) {
+  const geo = await resolveEventGeo(req);
   const rateLimitResult = await checkIpRateLimit(req, "auth-send-otp", { maxRequests: 20, windowMs: 600_000 });
   if (!rateLimitResult.allowed && rateLimitResult.response) {
     return rateLimitResult.response;
@@ -120,8 +122,16 @@ export async function POST(req: Request) {
         data: {
           phone: normalizedPhone,
           status: "OTP_SENT",
-          ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
-          userAgent: req.headers.get("user-agent") || "Web Browser"
+          userAgent: req.headers.get("user-agent") || "Web Browser",
+          ip: geo.ip,
+          geoSource: geo.geoSource,
+          city: geo.city,
+          region: geo.region,
+          country: geo.country,
+          countryCode: geo.countryCode,
+          zip: geo.zip,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
         }
       }).catch(console.error);
 
@@ -137,8 +147,16 @@ export async function POST(req: Request) {
         data: {
           phone: normalizedPhone,
           status: "OTP_FAILED",
-          ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || null,
-          userAgent: req.headers.get("user-agent") || "Web Browser"
+          userAgent: req.headers.get("user-agent") || "Web Browser",
+          ip: geo.ip,
+          geoSource: geo.geoSource,
+          city: geo.city,
+          region: geo.region,
+          country: geo.country,
+          countryCode: geo.countryCode,
+          zip: geo.zip,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
         }
       }).catch(console.error);
 

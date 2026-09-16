@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback, Suspense, memo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   Mail,
   MapPin,
@@ -28,6 +29,16 @@ import {
    - Optimistic UI for instant chat feedback
    - will-change hints for scroll containers
    ────────────────────────────────────────────── */
+
+function getStoredClientGeo() {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const raw = sessionStorage.getItem('zb_geo_data');
+    return raw ? JSON.parse(raw) : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /* ──────────────────────────────────────────────
    Quick Action Card Component (memoized)
@@ -290,7 +301,8 @@ function SupportPageContent() {
               guestEmail: session?.user?.email || 'Logged-in User',
               subject,
               content: `Live chat session initiated by user${orderIdParam ? ` for order #${orderIdParam}` : ''}.`,
-              priority: orderIdParam ? 'HIGH' : 'MEDIUM'
+              priority: orderIdParam ? 'HIGH' : 'MEDIUM',
+              clientGeo: getStoredClientGeo()
             })
           });
           const createData = await createRes.json();
@@ -336,7 +348,8 @@ function SupportPageContent() {
           guestEmail: formData.email,
           subject: formData.subject,
           content: formData.message,
-          priority: 'MEDIUM'
+          priority: 'MEDIUM',
+          clientGeo: getStoredClientGeo()
         })
       });
 
@@ -386,7 +399,8 @@ function SupportPageContent() {
           ticketId,
           content: messageContent,
           senderType: 'USER',
-          senderName
+          senderName,
+          clientGeo: getStoredClientGeo()
         })
       });
 

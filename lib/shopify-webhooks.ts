@@ -43,6 +43,8 @@ export async function registerWebhooks() {
       'orders/fulfilled',
       'orders/cancelled',
       'orders/paid',
+      'fulfillments/create',
+      'fulfillments/update',
       'refunds/create',
       'inventory_levels/update'
     ];

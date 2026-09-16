@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 import { checkRateLimit, rateLimit } from "@/lib/rate-limit";
 import { getClientIP } from "@/lib/ip-geo";
+import { resolveEventGeo } from "@/lib/resolve-event-geo";
 
 async function autoOptInCustomer(phone: string, customerId: string) {
   try {
@@ -98,7 +99,8 @@ export async function POST(req: Request) {
     return rateLimitResult.response;
   }
   try {
-    const { phone, otp, name } = await req.json();
+    const { phone, otp, name, clientGeo } = await req.json();
+    const geo = await resolveEventGeo(req, clientGeo);
 
     if (!phone || !otp) {
       return NextResponse.json({ error: "Phone and OTP are required" }, { status: 400 });
@@ -198,7 +200,15 @@ export async function POST(req: Request) {
           phone: phone,
           status: "FAILED",
           userAgent: req.headers.get("user-agent") || "Mobile App",
-          ip: getClientIP(req),
+          ip: geo.ip,
+          geoSource: geo.geoSource,
+          city: geo.city,
+          region: geo.region,
+          country: geo.country,
+          countryCode: geo.countryCode,
+          zip: geo.zip,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
         }
       }).catch(console.error);
 
@@ -274,7 +284,20 @@ export async function POST(req: Request) {
 
       // Log success (non-blocking)
       prisma.appLogin.create({
-        data: { phone: fullPhone, status: "SUCCESS", userAgent: req.headers.get("user-agent") || "Mobile App", ip: getClientIP(req) }
+        data: {
+          phone: fullPhone,
+          status: "SUCCESS",
+          userAgent: req.headers.get("user-agent") || "Mobile App",
+          ip: geo.ip,
+          geoSource: geo.geoSource,
+          city: geo.city,
+          region: geo.region,
+          country: geo.country,
+          countryCode: geo.countryCode,
+          zip: geo.zip,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+        }
       }).catch(console.error);
 
       const tokenPayload = {
@@ -509,7 +532,20 @@ export async function POST(req: Request) {
     }).catch(console.error);
 
     prisma.appLogin.create({
-      data: { phone: fullPhone, status: "SUCCESS", userAgent: req.headers.get("user-agent") || "Mobile App", ip: getClientIP(req) }
+      data: {
+        phone: fullPhone,
+        status: "SUCCESS",
+        userAgent: req.headers.get("user-agent") || "Mobile App",
+        ip: geo.ip,
+        geoSource: geo.geoSource,
+        city: geo.city,
+        region: geo.region,
+        country: geo.country,
+        countryCode: geo.countryCode,
+        zip: geo.zip,
+        latitude: geo.latitude,
+        longitude: geo.longitude,
+      }
     }).catch(console.error);
 
     const tokenPayload = {

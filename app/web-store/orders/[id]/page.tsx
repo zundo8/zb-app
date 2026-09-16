@@ -78,6 +78,10 @@ interface Order {
   codUpfrontPaymentId?: string;
   paymentFailureReason?: string | null;
   fulfillmentStatus: string;
+  deliveryStatus?: string;
+  deliveredAt?: string;
+  shopifyOrderId?: string;
+  shopifyOrderName?: string;
   trackingNumber?: string;
   trackingUrl?: string;
   notes?: string;
@@ -186,6 +190,8 @@ export default function WebStoreOrderDetail() {
     switch (status) {
       case "delivered":
         return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle className="w-3.5 h-3.5" /> Delivered</span>;
+      case "out_for_delivery":
+        return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"><Truck className="w-3.5 h-3.5" /> Out for Delivery</span>;
       case "shipped":
         return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20"><Truck className="w-3.5 h-3.5" /> Shipped</span>;
       case "processing":
@@ -305,7 +311,7 @@ export default function WebStoreOrderDetail() {
 
         <div className="flex items-center gap-3">
           {getPaymentBadge(order.paymentStatus, order.paymentFailureReason)}
-          {getFulfillmentBadge(order.fulfillmentStatus)}
+          {getFulfillmentBadge(order.deliveryStatus || order.fulfillmentStatus)}
         </div>
       </div>
 

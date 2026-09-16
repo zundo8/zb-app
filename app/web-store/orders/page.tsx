@@ -34,6 +34,12 @@ interface Order {
   paymentStatus: string;
   paymentMethod: string;
   fulfillmentStatus: string;
+  deliveryStatus?: string | null;
+  deliveredAt?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  shopifyOrderId?: string | null;
+  shopifyOrderName?: string | null;
   createdAt: string;
   codUpfrontPaid?: number;
   codUpfrontPaymentId?: string;
@@ -251,6 +257,8 @@ function WebStoreOrdersContent() {
     switch (status) {
       case "delivered":
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle className="w-3 h-3" /> Delivered</span>;
+      case "out_for_delivery":
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"><Truck className="w-3 h-3" /> Out for Delivery</span>;
       case "shipped":
         return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20"><Truck className="w-3 h-3" /> Shipped</span>;
       case "processing":
@@ -556,7 +564,27 @@ function WebStoreOrdersContent() {
                         </div>
                       </td>
                       <td className="py-4 px-3">{getPaymentBadge(order.paymentStatus, order.paymentMethod, order.codUpfrontPaid, order.paymentFailureReason)}</td>
-                      <td className="py-4 px-3">{getFulfillmentBadge(order.fulfillmentStatus)}</td>
+                      <td className="py-4 px-3">
+                        <div className="flex flex-col gap-1 items-start">
+                          {getFulfillmentBadge(order.deliveryStatus || order.fulfillmentStatus)}
+                          {order.trackingNumber && (
+                            order.trackingUrl ? (
+                              <a
+                                href={order.trackingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[9px] font-mono text-indigo-400 hover:underline flex items-center gap-1"
+                                title="Track Shipment"
+                              >
+                                {order.trackingNumber}
+                              </a>
+                            ) : (
+                              <span className="text-[9px] font-mono text-foreground/40">{order.trackingNumber}</span>
+                            )
+                          )}
+                        </div>
+                      </td>
                       <td className="py-4 px-3">
                         {(() => {
                           const isRowCOD = (order.paymentMethod || "").toLowerCase().trim() === "cod";

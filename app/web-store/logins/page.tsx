@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   Globe,
   ShoppingBag,
-  UserCheck
+  UserCheck,
+  MapPin
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -27,6 +28,14 @@ interface LoginLog {
   createdAt: string;
   hasPurchased: boolean;
   orderCount: number;
+  geoSource?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  countryCode?: string | null;
+  zip?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export default function WebStoreLoginsPage() {
@@ -64,8 +73,35 @@ export default function WebStoreLoginsPage() {
     (l) =>
       l.phone.includes(searchQuery) ||
       l.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (l.userAgent && l.userAgent.toLowerCase().includes(searchQuery.toLowerCase()))
+      (l.userAgent && l.userAgent.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (l.city && l.city.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (l.region && l.region.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (l.country && l.country.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (l.ip && l.ip.includes(searchQuery))
   );
+
+  const getGeoSourceBadge = (source?: string | null) => {
+    switch (source) {
+      case "GPS":
+        return (
+          <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+            GPS Verified
+          </span>
+        );
+      case "IP":
+        return (
+          <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20">
+            IP Geolocation
+          </span>
+        );
+      default:
+        return (
+          <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-foreground/5 text-foreground/40 border border-foreground/10">
+            Unknown
+          </span>
+        );
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -240,6 +276,7 @@ export default function WebStoreLoginsPage() {
                   <th className="py-4 px-4">Status</th>
                   <th className="py-4 px-4">Purchased / Orders</th>
                   <th className="py-4 px-4">Browser / Agent</th>
+                  <th className="py-4 px-4"><span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Location</span></th>
                   <th className="py-4 px-6"><span className="flex items-center gap-1"><Globe className="w-3.5 h-3.5" /> IP Address</span></th>
                 </tr>
               </thead>
@@ -269,6 +306,27 @@ export default function WebStoreLoginsPage() {
                     <td className="py-4 px-4 whitespace-nowrap">{getOrderBadge(login)}</td>
                     <td className="py-4 px-4 text-[10.5px] text-foreground/50 max-w-[200px] truncate" title={login.userAgent || ""}>
                       {formatBrowserName(login.userAgent)}
+                    </td>
+                    <td className="py-4 px-4 whitespace-nowrap">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1 text-[11px] font-medium text-foreground/80">
+                          {login.latitude != null && login.longitude != null ? (
+                            <a
+                              href={`https://www.google.com/maps?q=${login.latitude},${login.longitude}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-emerald-500 hover:text-emerald-400 hover:underline flex items-center gap-0.5 font-semibold"
+                              title={`View Map (${login.latitude.toFixed(4)}, ${login.longitude.toFixed(4)})`}
+                            >
+                              <span>📍</span>
+                              <span>{[login.city, login.region, login.country].filter(Boolean).join(", ") || "View Map"}</span>
+                            </a>
+                          ) : (
+                            <span>📍 {[login.city, login.region, login.country].filter(Boolean).join(", ") || "—"}</span>
+                          )}
+                        </div>
+                        <div>{getGeoSourceBadge(login.geoSource)}</div>
+                      </div>
                     </td>
                     <td className="py-4 px-6 text-[11px] font-mono text-foreground/45 whitespace-nowrap">
                       {login.ip || "—"}

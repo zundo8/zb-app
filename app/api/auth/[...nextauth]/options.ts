@@ -6,6 +6,7 @@ import { AuthOptions } from "next-auth";
 import { searchCustomerByPhone, fetchOrdersByCustomerId } from "@/lib/shopify-admin";
 import bcrypt from "bcryptjs";
 import { SmsService } from "@/lib/services/sms.service";
+import { resolveEventGeoFromIp, ClientGeoInput } from "@/lib/resolve-event-geo";
 
 // Shopify Storefront API customer access token
 async function shopifyCustomerLogin(email: string, password: string) {
@@ -190,6 +191,7 @@ export const authOptions: AuthOptions = {
         name: { label: "Name", type: "text" },
         userAgent: { label: "UserAgent", type: "text" },
         ip: { label: "IP", type: "text" },
+        clientGeo: { label: "ClientGeo", type: "text" },
       },
       async authorize(credentials) {
         try {
@@ -198,6 +200,14 @@ export const authOptions: AuthOptions = {
           const providedName = String(credentials?.name || "").trim();
           const providedUserAgent = String(credentials?.userAgent || "Web Browser").trim();
           const providedIp = String(credentials?.ip || "").trim() || null;
+
+          let clientGeo: ClientGeoInput | undefined;
+          try {
+            clientGeo = credentials?.clientGeo ? JSON.parse(String(credentials.clientGeo)) : undefined;
+          } catch {
+            clientGeo = undefined;
+          }
+          const geo = await resolveEventGeoFromIp(providedIp, clientGeo);
 
           // Validate OTP format
           if (!/^\d{6}$/.test(providedOtp)) {
@@ -279,7 +289,15 @@ export const authOptions: AuthOptions = {
                 phone: fullPhone,
                 status: "OTP_INVALID",
                 userAgent: providedUserAgent,
-                ip: providedIp,
+                ip: geo.ip,
+                geoSource: geo.geoSource,
+                city: geo.city,
+                region: geo.region,
+                country: geo.country,
+                countryCode: geo.countryCode,
+                zip: geo.zip,
+                latitude: geo.latitude,
+                longitude: geo.longitude,
               }
             }).catch(console.error);
 
@@ -337,7 +355,20 @@ export const authOptions: AuthOptions = {
 
             // Log success (non-blocking)
             prisma.appLogin.create({
-              data: { phone: fullPhone, status: "LOGGED_IN", userAgent: providedUserAgent, ip: providedIp }
+              data: {
+                phone: fullPhone,
+                status: "LOGGED_IN",
+                userAgent: providedUserAgent,
+                ip: geo.ip,
+                geoSource: geo.geoSource,
+                city: geo.city,
+                region: geo.region,
+                country: geo.country,
+                countryCode: geo.countryCode,
+                zip: geo.zip,
+                latitude: geo.latitude,
+                longitude: geo.longitude,
+              }
             }).catch(console.error);
 
             // ── BACKGROUND: Shopify sync (non-blocking, fire-and-forget) ──
@@ -706,7 +737,15 @@ export const authOptions: AuthOptions = {
               phone: fullPhone,
               status: "ACCOUNT_CREATED",
               userAgent: providedUserAgent,
-              ip: providedIp,
+              ip: geo.ip,
+              geoSource: geo.geoSource,
+              city: geo.city,
+              region: geo.region,
+              country: geo.country,
+              countryCode: geo.countryCode,
+              zip: geo.zip,
+              latitude: geo.latitude,
+              longitude: geo.longitude,
             }
           }).catch(console.error);
 

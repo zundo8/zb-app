@@ -3,6 +3,7 @@ import prisma from '@/lib/db';
 import { sendMail } from '@/lib/mailer';
 import { resolvePrincipal } from '@/lib/ai/principal';
 import { processSupportTicketAIReply } from '@/lib/ai/supportAgent';
+import { resolveEventGeo } from '@/lib/resolve-event-geo';
 
 export const dynamic = 'force-dynamic';
 
@@ -175,7 +176,8 @@ export async function POST(req: NextRequest) {
   try {
     const principal = await resolvePrincipal(req);
     const body = await req.json();
-    const { guestName: rawGuestName, guestEmail: rawGuestEmail, subject, content, priority } = body;
+    const { guestName: rawGuestName, guestEmail: rawGuestEmail, subject, content, priority, clientGeo } = body;
+    const geo = await resolveEventGeo(req, clientGeo);
 
     let targetCustomerId = principal.kind === 'customer' ? principal.customerId : null;
     let guestName = rawGuestName;
@@ -241,6 +243,15 @@ export async function POST(req: NextRequest) {
           senderType: 'USER',
           senderId: targetCustomerId,
           senderName,
+          ip: geo.ip,
+          geoSource: geo.geoSource,
+          city: geo.city,
+          region: geo.region,
+          country: geo.country,
+          countryCode: geo.countryCode,
+          zip: geo.zip,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
         },
       });
 
@@ -283,6 +294,15 @@ export async function POST(req: NextRequest) {
         guestEmail: guestEmail || null,
         subject: cleanSubject,
         priority: priority || 'MEDIUM',
+        ip: geo.ip,
+        geoSource: geo.geoSource,
+        city: geo.city,
+        region: geo.region,
+        country: geo.country,
+        countryCode: geo.countryCode,
+        zip: geo.zip,
+        latitude: geo.latitude,
+        longitude: geo.longitude,
         messages: {
           create: [
             {
@@ -290,6 +310,15 @@ export async function POST(req: NextRequest) {
               senderType: 'USER',
               senderId: targetCustomerId,
               senderName,
+              ip: geo.ip,
+              geoSource: geo.geoSource,
+              city: geo.city,
+              region: geo.region,
+              country: geo.country,
+              countryCode: geo.countryCode,
+              zip: geo.zip,
+              latitude: geo.latitude,
+              longitude: geo.longitude,
             },
             {
               content: `Hello! We have received your support request regarding "${cleanSubject}". Our team and Zica AI assistant will review it shortly. Ticket ID: #${cleanSubject.slice(0, 4)}-${Date.now().toString().slice(-4)}`,

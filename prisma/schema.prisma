@@ -1194,12 +1194,20 @@ model VerificationCode {
 }
 
 model AppLogin {
-  id        String   @id @default(cuid())
-  phone     String
-  status    String   @default("SUCCESS")
-  ip        String?
-  userAgent String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  phone       String
+  status      String   @default("SUCCESS")
+  ip          String?
+  userAgent   String?
+  geoSource   String?
+  city        String?
+  region      String?
+  country     String?
+  countryCode String?
+  zip         String?
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime @default(now())
 
   @@index([phone])
   @@index([createdAt])
@@ -1325,6 +1333,15 @@ model SupportTicket {
   status      String           @default("OPEN")
   priority    String           @default("MEDIUM")
   aiAutoReply Boolean          @default(true)
+  ip          String?
+  geoSource   String?
+  city        String?
+  region      String?
+  country     String?
+  countryCode String?
+  zip         String?
+  latitude    Float?
+  longitude   Float?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   messages    SupportMessage[]
@@ -1343,14 +1360,23 @@ model WhatsAppChatSetting {
 }
 
 model SupportMessage {
-  id         String        @id @default(cuid())
-  ticketId   String
-  senderType String        @default("USER")
-  senderId   String?
-  senderName String?
-  content    String
-  createdAt  DateTime      @default(now())
-  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  id          String        @id @default(cuid())
+  ticketId    String
+  senderType  String        @default("USER")
+  senderId    String?
+  senderName  String?
+  content     String
+  ip          String?
+  geoSource   String?
+  city        String?
+  region      String?
+  country     String?
+  countryCode String?
+  zip         String?
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime      @default(now())
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
 model SupportKnowledgeBase {
@@ -1597,6 +1623,10 @@ model WebStoreOrder {
   fulfillmentStatus   String   @default("unfulfilled") @map("fulfillment_status")
   trackingNumber      String?  @map("tracking_number")
   trackingUrl         String?  @map("tracking_url")
+  shopifyOrderId      String?  @map("shopify_order_id")
+  shopifyOrderName    String?  @map("shopify_order_name")
+  deliveryStatus      String?  @map("delivery_status")
+  deliveredAt         DateTime? @map("delivered_at")
   notes               String?
   source              String   @default("web")
   createdAt           DateTime @default(now()) @map("created_at")
@@ -1611,6 +1641,7 @@ model WebStoreOrder {
   @@index([fulfillmentStatus, createdAt])
   @@index([razorpayOrderId])
   @@index([phoneLast10])
+  @@index([shopifyOrderId])
   @@map("web_store_orders")
 }
 

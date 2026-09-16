@@ -68,6 +68,10 @@ export async function POST(req: Request) {
       case 'orders/updated':
         await handleOrderWebhook(shop, payload, topic);
         break;
+      case 'fulfillments/create':
+      case 'fulfillments/update':
+        await handleFulfillmentWebhook(shop, payload);
+        break;
       case 'refunds/create':
         await handleRefundWebhook(shop, payload);
         break;
@@ -218,10 +222,12 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
           await prisma.webStoreOrder.updateMany({
             where: { orderNumber: extractedNumber },
             data: {
-              notes: `Linked to Shopify: ${orderData.id.toString()} | Local: ${matchedOrder.id}`
+              notes: `Linked to Shopify: ${orderData.id.toString()} | Local: ${matchedOrder.id}`,
+              shopifyOrderId: orderData.id.toString(),
+              shopifyOrderName: orderData.name || null,
             }
           }).catch((e: any) => {
-            console.error('[Webhook] Failed to update webStoreOrder notes:', e.message);
+            console.error('[Webhook] Failed to update webStoreOrder notes and link:', e.message);
           });
         } else if (matchedOrder.orderType === 'MOBILE_APP') {
           await prisma.mobileOrder.updateMany({
@@ -250,6 +256,7 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
     webStoreOrder = await prisma.webStoreOrder.findFirst({
       where: {
         OR: [
+          { shopifyOrderId: orderData.id.toString() },
           { razorpayOrderId: orderData.id.toString() },
           { notes: { contains: `Shopify: ${orderData.id}` } }
         ]
@@ -356,6 +363,59 @@ async function handleOrderWebhook(shop: string, orderData: any, topic?: string) 
         }).catch((e: any) => console.error('[Webhook] Failed to update order AWB:', e.message));
       }
     }
+  }
+
+  // Fallback resolve WebStoreOrder if not matched earlier
+  if (!webStoreOrder && (order.internalOrderNumber || order.shopifyOrderId)) {
+    webStoreOrder = await prisma.webStoreOrder.findFirst({
+      where: {
+        OR: [
+          ...(order.shopifyOrderId ? [{ shopifyOrderId: order.shopifyOrderId }] : []),
+          ...(order.internalOrderNumber ? [{ orderNumber: order.internalOrderNumber }] : []),
+        ]
+      }
+    }).catch(() => null);
+  }
+
+  // ── Sync fulfillment/tracking/delivery back to the customer-facing WebStoreOrder ──
+  if (webStoreOrder) {
+    // Derive tracking from fulfillments (first with an AWB), fall back to Order fields
+    let wsTrackingNumber: string | null = null;
+    let wsTrackingUrl: string | null = null;
+    if (Array.isArray(orderData.fulfillments)) {
+      for (const f of orderData.fulfillments) {
+        const tn = f.tracking_number || f.tracking_numbers?.[0] || null;
+        if (tn) {
+          wsTrackingNumber = tn;
+          wsTrackingUrl = f.tracking_url || f.tracking_urls?.[0]
+            || (tn ? `https://www.shiprocket.in/shipment-tracking/?awb=${tn}` : null);
+          break;
+        }
+      }
+    }
+    if (!wsTrackingNumber && !webStoreOrder.trackingNumber && order.delhivery_awb) {
+      wsTrackingNumber = order.delhivery_awb;
+    }
+
+    const wsData: any = {
+      fulfillmentStatus: orderData.fulfillment_status || webStoreOrder.fulfillmentStatus || 'unfulfilled',
+      deliveryStatus: deliveryStatus,
+    };
+    // Only overwrite tracking fields when we actually have a value — never null out a
+    // manually-entered AWB from the admin PATCH.
+    if (wsTrackingNumber) wsData.trackingNumber = wsTrackingNumber;
+    if (wsTrackingUrl) wsData.trackingUrl = wsTrackingUrl;
+    if (deliveryStatus === 'delivered') wsData.deliveredAt = webStoreOrder.deliveredAt || new Date();
+    // Ensure the link is persisted even if B1 didn't run this cycle
+    if (!webStoreOrder.shopifyOrderId) {
+      wsData.shopifyOrderId = orderData.id.toString();
+      wsData.shopifyOrderName = orderData.name || null;
+    }
+
+    await prisma.webStoreOrder.update({
+      where: { id: webStoreOrder.id },
+      data: wsData,
+    }).catch((e: any) => console.error('[Webhook] Failed to sync tracking to webStoreOrder:', e.message));
   }
 
   if (finalStatus === 'cancelled') {
@@ -722,3 +782,117 @@ async function handleInventoryWebhook(shop: string, inventoryData: any) {
 
   console.log(`Inventory updated for ${inventoryItemId} at ${locationId} (product: ${product.title})`);
 }
+
+async function handleFulfillmentWebhook(shop: string, fulfillment: any) {
+  if (!fulfillment || !fulfillment.order_id) {
+    console.warn('[Fulfillment Webhook] Missing fulfillment or order_id in payload');
+    return;
+  }
+
+  const shopifyOrderId = fulfillment.order_id.toString();
+
+  // Find linked master Order and WebStoreOrder
+  let order = await prisma.order.findUnique({
+    where: { shopifyOrderId }
+  }).catch((e: any) => {
+    console.error('[Fulfillment Webhook] Error fetching Order:', e.message);
+    return null;
+  });
+
+  let webStoreOrder = await prisma.webStoreOrder.findFirst({
+    where: { shopifyOrderId }
+  }).catch((e: any) => {
+    console.error('[Fulfillment Webhook] Error fetching WebStoreOrder by shopifyOrderId:', e.message);
+    return null;
+  });
+
+  // Fallback: If WebStoreOrder is not yet linked with shopifyOrderId, resolve via Order's internalOrderNumber
+  if (!webStoreOrder && order?.internalOrderNumber) {
+    webStoreOrder = await prisma.webStoreOrder.findUnique({
+      where: { orderNumber: order.internalOrderNumber }
+    }).catch(() => null);
+  }
+
+  // Derive tracking & courier info
+  const trackingNumber = fulfillment.tracking_number || (Array.isArray(fulfillment.tracking_numbers) ? fulfillment.tracking_numbers[0] : null) || null;
+  const courier = fulfillment.tracking_company || fulfillment.courier || 'Standard Express';
+  const trackingUrl = fulfillment.tracking_url || (Array.isArray(fulfillment.tracking_urls) ? fulfillment.tracking_urls[0] : null)
+    || (trackingNumber ? `https://www.shiprocket.in/shipment-tracking/?awb=${trackingNumber}` : null);
+
+  // Map fulfillment shipment_status to deliveryStatus
+  const shipmentStatus = (fulfillment.shipment_status || '').toLowerCase();
+  let deliveryStatus = 'shipped';
+  if (shipmentStatus === 'delivered' || shipmentStatus === 'success') {
+    deliveryStatus = 'delivered';
+  } else if (shipmentStatus === 'out_for_delivery') {
+    deliveryStatus = 'out_for_delivery';
+  } else if (shipmentStatus === 'failure' || shipmentStatus === 'error') {
+    deliveryStatus = 'failed';
+  } else if (fulfillment.status === 'cancelled') {
+    deliveryStatus = 'cancelled';
+  }
+
+  const isCancelled = fulfillment.status === 'cancelled';
+  const fulfillmentStatus = isCancelled ? 'unfulfilled' : 'fulfilled';
+
+  // 1. Upsert Shipment row if trackingNumber is present
+  if (trackingNumber && order) {
+    await prisma.shipment.upsert({
+      where: { awb: trackingNumber },
+      create: {
+        orderId: order.id,
+        awb: trackingNumber,
+        trackingNumber: trackingNumber,
+        courier: courier,
+        status: deliveryStatus,
+        trackingUrl: trackingUrl,
+      },
+      update: {
+        courier: courier,
+        status: deliveryStatus,
+        trackingUrl: trackingUrl,
+      }
+    }).catch((e: any) => console.error('[Fulfillment Webhook] Failed to upsert shipment:', e.message));
+  }
+
+  // 2. Update master Order
+  if (order) {
+    const orderData: any = {
+      deliveryStatus: deliveryStatus,
+      fulfillmentStatus: fulfillmentStatus,
+    };
+    if (trackingNumber) {
+      orderData.delhivery_awb = trackingNumber;
+      orderData.tracking_status = deliveryStatus;
+    }
+    if (deliveryStatus === 'delivered') {
+      orderData.deliveredAt = order.deliveredAt || new Date();
+    }
+
+    await prisma.order.update({
+      where: { id: order.id },
+      data: orderData,
+    }).catch((e: any) => console.error('[Fulfillment Webhook] Failed to update order:', e.message));
+  }
+
+  // 3. Update WebStoreOrder
+  if (webStoreOrder) {
+    const wsData: any = {
+      fulfillmentStatus: fulfillmentStatus,
+      deliveryStatus: deliveryStatus,
+    };
+    // Only overwrite tracking fields when we actually have a value — never null out a manually entered AWB
+    if (trackingNumber) wsData.trackingNumber = trackingNumber;
+    if (trackingUrl) wsData.trackingUrl = trackingUrl;
+    if (deliveryStatus === 'delivered') wsData.deliveredAt = webStoreOrder.deliveredAt || new Date();
+    if (!webStoreOrder.shopifyOrderId) {
+      wsData.shopifyOrderId = shopifyOrderId;
+    }
+
+    await prisma.webStoreOrder.update({
+      where: { id: webStoreOrder.id },
+      data: wsData,
+    }).catch((e: any) => console.error('[Fulfillment Webhook] Failed to update webStoreOrder:', e.message));
+  }
+}
+

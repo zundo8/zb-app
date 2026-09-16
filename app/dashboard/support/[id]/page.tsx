@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Send, AlertCircle, Loader2, ArrowLeft, User, ShieldCheck, Sparkles } from 'lucide-react';
+import { Send, AlertCircle, Loader2, ArrowLeft, User, ShieldCheck, Sparkles, MapPin, Globe } from 'lucide-react';
 
 interface SupportMessage {
   id: string;
@@ -12,6 +12,15 @@ interface SupportMessage {
   senderName?: string | null;
   content: string;
   createdAt: string;
+  ip?: string | null;
+  geoSource?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  countryCode?: string | null;
+  zip?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface SupportTicketDetail {
@@ -29,6 +38,15 @@ interface SupportTicketDetail {
   createdAt: string;
   updatedAt: string;
   messages: SupportMessage[];
+  ip?: string | null;
+  geoSource?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  countryCode?: string | null;
+  zip?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export default function TicketDetailPage() {
@@ -361,6 +379,49 @@ export default function TicketDetailPage() {
               
               <div className="pt-6 border-t border-foreground/[0.05] space-y-4">
                 <div>
+                  <p className="text-[8px] font-bold text-foreground/20 uppercase tracking-[0.3em] mb-1.5 flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-foreground/40" />
+                    Requester Location
+                  </p>
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-bold text-foreground/80 flex items-center gap-1.5 flex-wrap">
+                      <span>📍 {[ticket.city, ticket.region, ticket.country].filter(Boolean).join(", ") || (ticket.ip ? "IP Location Unresolved" : "No Location Data")}</span>
+                      {ticket.latitude != null && ticket.longitude != null && (
+                        <a
+                          href={`https://www.google.com/maps?q=${ticket.latitude},${ticket.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[9px] font-bold uppercase tracking-wider text-emerald-500 hover:text-emerald-400 hover:underline"
+                        >
+                          View Map ↗
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {ticket.geoSource === "GPS" ? (
+                        <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                          GPS Verified
+                        </span>
+                      ) : ticket.geoSource === "IP" ? (
+                        <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                          IP Geolocation
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-foreground/5 text-foreground/40 border border-foreground/10">
+                          No Geo
+                        </span>
+                      )}
+                      {ticket.ip && (
+                        <span className="text-[9px] font-mono text-foreground/40 flex items-center gap-1">
+                          <Globe className="w-2.5 h-2.5" />
+                          {ticket.ip}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
                   <p className="text-[8px] font-bold text-foreground/20 uppercase tracking-[0.3em] mb-1">Created At</p>
                   <p className="text-[11px] font-bold text-foreground/60 uppercase">
                     {new Date(ticket.createdAt).toLocaleDateString('en-GB')}
@@ -435,7 +496,30 @@ export default function TicketDetailPage() {
                             <span className="text-[7px] font-extrabold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 uppercase tracking-wider">AUTOREPLY</span>
                           </>
                         ) : (
-                          <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">{displayName}</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[8px] font-bold text-foreground/40 uppercase tracking-widest">{displayName}</span>
+                            {(msg.city || msg.region || msg.ip) && (
+                              <span className="inline-flex items-center gap-1 text-[7.5px] font-medium px-1.5 py-0.5 rounded bg-foreground/[0.03] border border-foreground/[0.06] text-foreground/50">
+                                <span>📍</span>
+                                {msg.latitude != null && msg.longitude != null ? (
+                                  <a
+                                    href={`https://www.google.com/maps?q=${msg.latitude},${msg.longitude}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-emerald-400 hover:underline"
+                                    title={`Coordinates: ${msg.latitude}, ${msg.longitude}`}
+                                  >
+                                    {[msg.city, msg.region].filter(Boolean).join(", ") || msg.ip}
+                                  </a>
+                                ) : (
+                                  <span>{[msg.city, msg.region].filter(Boolean).join(", ") || msg.ip}</span>
+                                )}
+                                <span className={`font-bold ${msg.geoSource === 'GPS' ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                  • {msg.geoSource === 'GPS' ? 'GPS' : 'IP'}
+                                </span>
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                       <div className={`p-4 rounded-3xl ${
