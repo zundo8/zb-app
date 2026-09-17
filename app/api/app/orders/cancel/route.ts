@@ -117,6 +117,14 @@ export async function POST(req: Request) {
       console.error('[Cancel Order Route] Refund processing error:', refundErr);
     }
 
+    // 2b. Revert affiliate referral if active
+    try {
+      const { reverseReferral } = await import('@/lib/affiliate/earnings');
+      await reverseReferral(orderId, 'cancelled_by_user');
+    } catch (affErr: any) {
+      console.warn('[Cancel Order Route] Affiliate reversal warning:', affErr.message);
+    }
+
     // 3. Try to cancel in Shopify if shopifyOrderId exists
     if (order.shopifyOrderId) {
       try {

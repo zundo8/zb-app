@@ -84,6 +84,10 @@ const ALL_KNOWN_MODULE_PAGES: Record<string, string[]> = {
   ADMIN_USERS: ["/dashboard/admin-users"],
   AUDIT_LOG: ["/dashboard/audit-log"],
   ANALYTICS: ["/dashboard/analytics"],
+  AFFILIATES: [
+    "/dashboard/affiliates",
+    "/dashboard/affiliates/withdrawals",
+  ],
 };
 
 export default withAuth(
@@ -139,9 +143,32 @@ export default withAuth(
       return res;
     };
 
+    // Query-param capture for Affiliate referral (?ref=CODE or ?aff=CODE)
+    const refParam = isStorefront
+      ? (req.nextUrl.searchParams.get('ref') || req.nextUrl.searchParams.get('aff'))?.trim()
+      : null;
+
+    const attachStorefrontCookies = (res: NextResponse) => {
+      attachClientIpCookie(res);
+      if (refParam) {
+        try {
+          const { signAffiliateCookie, getAffiliateCookieOptions } = require('@/lib/affiliate/cookie');
+          const token = signAffiliateCookie({
+            code: refParam.toUpperCase(),
+            ts: Date.now(),
+          });
+          const opts = getAffiliateCookieOptions();
+          res.cookies.set(opts.name, token, opts);
+        } catch (e: any) {
+          console.warn('[Middleware] Failed to sign affiliate cookie:', e.message);
+        }
+      }
+      return res;
+    };
+
     // Allow public API routes for the React Native app and Zica AI
     if (pathname.startsWith('/api/app/') || pathname.startsWith('/api/zica-ai')) {
-      return attachClientIpCookie(NextResponse.next());
+      return attachStorefrontCookies(NextResponse.next());
     }
 
     // CSRF protection for mutation routes (POST, PUT, DELETE) on admin APIs
@@ -225,11 +252,14 @@ export default withAuth(
       "/api/admin/audit-logs": "ADMIN_USERS",
       "/dashboard/global-store": "INTEGRATIONS",
       "/api/admin/global-store": "INTEGRATIONS",
+      "/dashboard/affiliates": "AFFILIATES",
+      "/api/admin/affiliates": "AFFILIATES",
     };
 
     // Check module-specific page/API access
     const apiPageMap: Record<string, string> = {
       "/api/admin/orders": "/dashboard/orders",
+      "/api/admin/affiliates": "/dashboard/affiliates",
       "/api/web-store/stats": "/web-store",
       "/api/web-store/orders": "/web-store/orders",
       "/api/web-store/customers": "/web-store/customers",
@@ -351,7 +381,7 @@ export default withAuth(
       }
     }
 
-    return attachClientIpCookie(NextResponse.next());
+    return attachStorefrontCookies(NextResponse.next());
   },
   {
     callbacks: {

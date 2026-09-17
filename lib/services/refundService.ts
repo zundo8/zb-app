@@ -256,6 +256,14 @@ export async function processOrderRefund(orderId: string, triggeredBy = 'system'
       });
     }
 
+    // ─── AFFILIATE COMMISSION REVERSAL ───
+    try {
+      const { reverseReferral } = await import('@/lib/affiliate/earnings');
+      await reverseReferral(order.id, 'refund_processed');
+    } catch (affErr: any) {
+      console.warn('[AutoRefund] Affiliate reversal warning:', affErr.message);
+    }
+
     return { success: true, refundId: refund.id };
   } catch (err: any) {
     console.error(`[AutoRefund] Razorpay refund API failed for Order ${orderId}:`, err);

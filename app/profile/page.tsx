@@ -35,6 +35,7 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
+import AffiliateCreatorTab from "@/components/profile/AffiliateCreatorTab";
 import { useBookmarks } from "@/lib/bookmark-context";
 import {
   COUNTRIES,
@@ -73,7 +74,7 @@ export default function ProfilePage() {
   const [customer, setCustomer] = useState<any>(null);
   const [addresses, setAddresses] = useState<DBAddress[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "returns" | "wishlist" | "addresses" | "info">("orders");
+  const [tab, setTab] = useState<"orders" | "returns" | "wishlist" | "addresses" | "info" | "affiliate">("orders");
   
   // Preferences settings
   const [storeCreditPreference, setStoreCreditPreference] = useState(false);
@@ -500,7 +501,8 @@ export default function ProfilePage() {
             { id: "returns", label: "Returns", icon: RotateCcw },
             { id: "wishlist", label: "Wishlist", icon: Heart },
             { id: "addresses", label: "Addresses", icon: MapPin },
-            { id: "info", label: "Account", icon: User }
+            { id: "info", label: "Account", icon: User },
+            { id: "affiliate", label: "Creator", icon: Sparkles }
           ] as const).map((t) => {
             const isActive = tab === t.id;
             const Icon = t.icon;
@@ -1020,6 +1022,18 @@ export default function ProfilePage() {
               >
                 Sign Out
               </button>
+            </motion.div>
+          )}
+
+          {tab === "affiliate" && (
+            <motion.div
+              key="affiliate"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3 }}
+            >
+              <AffiliateCreatorTab customer={customer} />
             </motion.div>
           )}
         </AnimatePresence>

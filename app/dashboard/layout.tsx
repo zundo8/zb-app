@@ -271,6 +271,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "WhatsApp Hub", href: "/dashboard/marketing/whatsapp", icon: MessageCircle, module: 'MARKETING' },
     { name: "Email Center", href: "/dashboard/marketing/email", icon: Mail, module: 'MARKETING' },
     { name: "SMS Campaigns", href: "/dashboard/marketing/sms", icon: MessageSquare, module: 'MARKETING' },
+    { name: "Affiliates", href: "/dashboard/affiliates", icon: Users, module: 'AFFILIATES' },
+    { name: "Affiliate Payouts", href: "/dashboard/affiliates/withdrawals", icon: Wallet, module: 'AFFILIATES' },
   ];
 
   const whatsappEventsNav = [

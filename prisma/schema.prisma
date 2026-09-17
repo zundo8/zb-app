@@ -133,43 +133,44 @@ model ProductMoodBoard {
 }
 
 model Customer {
-  id                    String             @id @default(cuid())
-  shopId                String
-  shopifyId             String             @unique
-  email                 String?
-  name                  String?
-  phone                 String?
-  phoneLast10           String?
-  defaultAddress        String?
-  ordersCount           Int                @default(0)
-  totalSpent            Float              @default(0)
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
-  image                 String?
-  region                String?
-  storeCredits          Float              @default(0)
-  storeCreditPreference Boolean            @default(false)
-  emailOptedOut         Boolean            @default(false)
-  smsOptedOut           Boolean            @default(false)
-  whatsappOptedOut      Boolean            @default(false)
-  lastLoginAt           DateTime?
+  id                      String             @id @default(cuid())
+  shopId                  String
+  shopifyId               String             @unique
+  email                   String?
+  name                    String?
+  phone                   String?
+  phoneLast10             String?
+  defaultAddress          String?
+  ordersCount             Int                @default(0)
+  totalSpent              Float              @default(0)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  image                   String?
+  region                  String?
+  storeCredits            Float              @default(0)
+  storeCreditPreference   Boolean            @default(false)
+  emailOptedOut           Boolean            @default(false)
+  smsOptedOut             Boolean            @default(false)
+  whatsappOptedOut        Boolean            @default(false)
+  lastLoginAt             DateTime?
   accountCreatedMsgSentAt DateTime?
-  tokenVersion          Int                @default(0)
-  addresses             Address[]
-  communityMember       CommunityMember?
-  communityMessages     CommunityMessage[]
-  shop                  Shop               @relation(fields: [shopId], references: [id])
-  following             Follow[]           @relation("UserFollowing")
-  followers             Follow[]           @relation("UserFollowers")
-  mobileOrders          MobileOrder[]
-  orders                Order[]
-  payments              Payment[]
-  profileHistory        ProfileHistory[]
-  returns               Return[]
-  storeCreditTxns       StoreCredit[]
-  wishlist              Wishlist[]
-  carts                 Cart[]
-  supportTickets        SupportTicket[]
+  tokenVersion            Int                @default(0)
+  addresses               Address[]
+  communityMember         CommunityMember?
+  communityMessages       CommunityMessage[]
+  shop                    Shop               @relation(fields: [shopId], references: [id])
+  following               Follow[]           @relation("UserFollowing")
+  followers               Follow[]           @relation("UserFollowers")
+  mobileOrders            MobileOrder[]
+  orders                  Order[]
+  payments                Payment[]
+  profileHistory          ProfileHistory[]
+  returns                 Return[]
+  storeCreditTxns         StoreCredit[]
+  wishlist                Wishlist[]
+  carts                   Cart[]
+  supportTickets          SupportTicket[]
+  affiliate               Affiliate?
 
   @@index([phone])
   @@index([phoneLast10])
@@ -178,21 +179,21 @@ model Customer {
 }
 
 model Cart {
-  id               String     @id @default(cuid())
-  customerId       String?    @map("customer_id")
-  sessionToken     String?    @unique @map("session_token")
-  source           String     @default("webstore")
-  status           String     @default("active")
-  phone            String?    @map("phone_number")
-  phoneLast10      String?    @map("phone_last_10")
+  id               String            @id @default(cuid())
+  customerId       String?           @map("customer_id")
+  sessionToken     String?           @unique @map("session_token")
+  source           String            @default("webstore")
+  status           String            @default("active")
+  phone            String?           @map("phone_number")
+  phoneLast10      String?           @map("phone_last_10")
   email            String?
-  subtotal         Float      @default(0)
-  currency         String     @default("INR")
-  createdAt        DateTime   @default(now()) @map("created_at")
-  updatedAt        DateTime   @updatedAt @map("updated_at")
-  lastActivityAt   DateTime   @default(now()) @map("last_activity_at")
-  abandonedAt      DateTime?  @map("abandoned_at")
-  convertedOrderId String?    @unique @map("converted_order_id")
+  subtotal         Float             @default(0)
+  currency         String            @default("INR")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  lastActivityAt   DateTime          @default(now()) @map("last_activity_at")
+  abandonedAt      DateTime?         @map("abandoned_at")
+  convertedOrderId String?           @unique @map("converted_order_id")
   city             String?
   country          String?
   latitude         Float?
@@ -200,8 +201,8 @@ model Cart {
   state            String?
   zip              String?
   items            CartItem[]
-  convertedOrder   Order?     @relation("ConvertedOrder", fields: [convertedOrderId], references: [id])
-  customer         Customer?  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  convertedOrder   Order?            @relation("ConvertedOrder", fields: [convertedOrderId], references: [id])
+  customer         Customer?         @relation(fields: [customerId], references: [id], onDelete: Cascade)
   whatsAppMessages WhatsAppMessage[]
 
   @@index([customerId])
@@ -264,25 +265,25 @@ model Follow {
 }
 
 model Order {
-  id                    String            @id @default(cuid())
+  id                    String             @id @default(cuid())
   shopId                String
-  shopifyOrderId        String?           @unique
+  shopifyOrderId        String?            @unique
   customerId            String
   status                String
   totalPrice            Float
   subtotalPrice         Float?
   totalTax              Float?
-  currency              String            @default("INR")
-  displayCountry        String?           @map("display_country")
+  currency              String             @default("INR")
+  displayCountry        String?            @map("display_country")
   paymentStatus         String
   fulfillmentStatus     String
-  deliveryStatus        String            @default("pending")
+  deliveryStatus        String             @default("pending")
   shippingAddress       String?
   billingAddress        String?
   note                  String?
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
-  orderType             String            @default("REGULAR")
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  orderType             String             @default("REGULAR")
   tags                  String?
   aiRiskRecommendation  String?
   codConfirmationMethod String?
@@ -290,39 +291,40 @@ model Order {
   codConfirmedAt        DateTime?
   paymentCapturedAt     DateTime?
   paymentMethod         String?
-  razorpayOrderId       String?           @unique
-  razorpayPaymentId     String?           @unique
+  razorpayOrderId       String?            @unique
+  razorpayPaymentId     String?            @unique
   rtoRiskFactors        String?
   rtoRiskScore          Int?
-  discountAmount        Float?            @default(0)
-  storeCreditAmount     Float?            @default(0)
+  discountAmount        Float?             @default(0)
+  storeCreditAmount     Float?             @default(0)
   discountCode          String?
   delhivery_awb         String?
   tracking_status       String?
-  internalOrderNumber   String?           @unique @map("internal_order_number")
-  shopifyOrderName      String?           @map("shopify_order_name")
-  shopifySyncStatus     String            @default("synced") @map("shopify_sync_status")
-  shopifySyncError      String?           @map("shopify_sync_error")
-  refundStatus          String            @default("not_applicable") @map("refund_status")
-  refundError           String?           @map("refund_error")
-  refundAttempts        Int               @default(0) @map("refund_attempts")
-  cancelledAt           DateTime?         @map("cancelled_at")
-  cancelledBy           String?           @map("cancelled_by")
-  refundId              String?           @unique @map("refund_id")
-  paymentFailureReason  String?           @map("payment_failure_reason")
-  previousOrderNumbers  String?           @map("previous_order_numbers")
-  deliveredAt           DateTime?         @map("delivered_at")
+  internalOrderNumber   String?            @unique @map("internal_order_number")
+  shopifyOrderName      String?            @map("shopify_order_name")
+  shopifySyncStatus     String             @default("synced") @map("shopify_sync_status")
+  shopifySyncError      String?            @map("shopify_sync_error")
+  refundStatus          String             @default("not_applicable") @map("refund_status")
+  refundError           String?            @map("refund_error")
+  refundAttempts        Int                @default(0) @map("refund_attempts")
+  cancelledAt           DateTime?          @map("cancelled_at")
+  cancelledBy           String?            @map("cancelled_by")
+  refundId              String?            @unique @map("refund_id")
+  paymentFailureReason  String?            @map("payment_failure_reason")
+  previousOrderNumbers  String?            @map("previous_order_numbers")
+  deliveredAt           DateTime?          @map("delivered_at")
   exchanges             Exchange[]
   exchangeRequests      ExchangeRequest[]
-  customer              Customer          @relation(fields: [customerId], references: [id])
-  shop                  Shop              @relation(fields: [shopId], references: [id])
+  customer              Customer           @relation(fields: [customerId], references: [id])
+  shop                  Shop               @relation(fields: [shopId], references: [id])
   items                 OrderItem[]
   payments              Payment[]
   returns               Return[]
   returnRequests        ReturnRequest[]
   shipments             Shipment[]
-  cartSession           Cart?             @relation("ConvertedOrder")
+  cartSession           Cart?              @relation("ConvertedOrder")
   webhookEvents         WebhookEvent[]
+  affiliateReferral     AffiliateReferral?
 
   @@index([createdAt])
   @@index([status, createdAt])
@@ -910,38 +912,38 @@ model NotificationSend {
 }
 
 model WhatsAppMessage {
-  id           String    @id @default(cuid())
-  direction    String
-  waMessageId  String?   @unique
-  phoneNumber  String
-  userId       String?
-  templateName String?
-  body         String?
-  mediaUrl     String?
-  mediaType    String?
-  status       String    @default("sent")
-  campaignId   String?
-  orderId      String?
-  errorCode    String?
-  errorMessage String?
-  sentAt       DateTime  @default(now())
-  deliveredAt  DateTime?
-  readAt       DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  nextRetryAt  DateTime? @map("next_retry_at")
-  retryCount   Int       @default(0) @map("retry_count")
-  cartId       String?   @map("cart_id")
-  recoveryStage Int?     @map("recovery_stage")
-  cart         Cart?     @relation(fields: [cartId], references: [id], onDelete: SetNull)
+  id            String    @id @default(cuid())
+  direction     String
+  waMessageId   String?   @unique
+  phoneNumber   String
+  userId        String?
+  templateName  String?
+  body          String?
+  mediaUrl      String?
+  mediaType     String?
+  status        String    @default("sent")
+  campaignId    String?
+  orderId       String?
+  errorCode     String?
+  errorMessage  String?
+  sentAt        DateTime  @default(now())
+  deliveredAt   DateTime?
+  readAt        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  nextRetryAt   DateTime? @map("next_retry_at")
+  retryCount    Int       @default(0) @map("retry_count")
+  cartId        String?   @map("cart_id")
+  recoveryStage Int?      @map("recovery_stage")
+  cart          Cart?     @relation(fields: [cartId], references: [id], onDelete: SetNull)
 
+  @@unique([cartId, recoveryStage])
   @@index([phoneNumber, createdAt])
   @@index([userId])
   @@index([campaignId])
   @@index([status])
   @@index([cartId])
   @@index([cartId, recoveryStage])
-  @@unique([cartId, recoveryStage])
   @@map("whatsapp_messages")
 }
 
@@ -1300,25 +1302,25 @@ model Wishlist {
 }
 
 model Address {
-  id         String   @id @default(cuid())
-  customerId String
-  name       String?
-  phone      String?
+  id          String   @id @default(cuid())
+  customerId  String
+  name        String?
+  phone       String?
   phoneLast10 String?
-  email      String?
-  address1   String
-  address2   String?
-  city       String
-  state      String
-  zip        String
-  country    String   @default("India")
-  isDefault  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  lat        Float?
-  lng        Float?
-  placeId    String?  @map("place_id")
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  email       String?
+  address1    String
+  address2    String?
+  city        String
+  state       String
+  zip         String
+  country     String   @default("India")
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lat         Float?
+  lng         Float?
+  placeId     String?  @map("place_id")
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   @@index([customerId])
   @@index([phoneLast10])
@@ -1393,7 +1395,6 @@ model SupportKnowledgeBase {
   @@index([category, isActive])
   @@index([isActive])
 }
-
 
 model User {
   id                   String                    @id @default(cuid())
@@ -1524,18 +1525,18 @@ model ZicaUserProfile {
 }
 
 model AiInteractionLog {
-  id             String   @id @default(cuid())
-  principalKind  String
-  principalId    String?
-  channel        String   // app | support | whatsapp | admin
-  modelUsed      String
-  tokensIn       Int
-  tokensOut      Int
-  latencyMs      Int
-  toolsCalled    String[] @default([])
-  guardTripped   Boolean  @default(false)
-  fallbackUsed   Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  id            String   @id @default(cuid())
+  principalKind String
+  principalId   String?
+  channel       String // app | support | whatsapp | admin
+  modelUsed     String
+  tokensIn      Int
+  tokensOut     Int
+  latencyMs     Int
+  toolsCalled   String[] @default([])
+  guardTripped  Boolean  @default(false)
+  fallbackUsed  Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
   @@index([principalKind, createdAt])
   @@index([channel, createdAt])
@@ -1544,7 +1545,7 @@ model AiInteractionLog {
 model AiTokenUsage {
   id          String   @id @default(cuid())
   customerId  String
-  date        String   // YYYY-MM-DD
+  date        String // YYYY-MM-DD
   totalTokens Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1603,38 +1604,38 @@ model MobileOrderItem {
 }
 
 model WebStoreOrder {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderNumber         String   @unique @map("order_number")
-  customerName        String   @map("customer_name")
-  customerEmail       String   @map("customer_email")
-  customerPhone       String   @map("customer_phone")
-  phoneLast10         String?  @map("phone_last_10")
-  shippingAddress     Json     @map("shipping_address")
-  items               Json     @map("items")
-  subtotal            Decimal  @db.Decimal(10, 2)
-  shippingCharge      Decimal  @map("shipping_charge") @db.Decimal(10, 2)
-  discountCode        String?  @map("discount_code")
-  discountAmount      Decimal  @default(0) @map("discount_amount") @db.Decimal(10, 2)
-  totalAmount         Decimal  @map("total_amount") @db.Decimal(10, 2)
-  paymentStatus       String   @map("payment_status")
-  paymentMethod       String   @map("payment_method")
-  razorpayOrderId     String?  @map("razorpay_order_id")
-  razorpayPaymentId   String?  @map("razorpay_payment_id")
-  fulfillmentStatus   String   @default("unfulfilled") @map("fulfillment_status")
-  trackingNumber      String?  @map("tracking_number")
-  trackingUrl         String?  @map("tracking_url")
-  shopifyOrderId      String?  @map("shopify_order_id")
-  shopifyOrderName    String?  @map("shopify_order_name")
-  deliveryStatus      String?  @map("delivery_status")
-  deliveredAt         DateTime? @map("delivered_at")
-  notes               String?
-  source              String   @default("web")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
-  codUpfrontPaid      Decimal  @default(0) @map("cod_upfront_paid") @db.Decimal(10, 2)
-  codUpfrontPaymentId String?  @map("cod_upfront_payment_id")
-  storeCreditAmount   Decimal? @default(0) @map("store_credit_amount") @db.Decimal(10, 2)
-  paymentFailureReason String? @map("payment_failure_reason")
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderNumber          String    @unique @map("order_number")
+  customerName         String    @map("customer_name")
+  customerEmail        String    @map("customer_email")
+  customerPhone        String    @map("customer_phone")
+  phoneLast10          String?   @map("phone_last_10")
+  shippingAddress      Json      @map("shipping_address")
+  items                Json      @map("items")
+  subtotal             Decimal   @db.Decimal(10, 2)
+  shippingCharge       Decimal   @map("shipping_charge") @db.Decimal(10, 2)
+  discountCode         String?   @map("discount_code")
+  discountAmount       Decimal   @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  totalAmount          Decimal   @map("total_amount") @db.Decimal(10, 2)
+  paymentStatus        String    @map("payment_status")
+  paymentMethod        String    @map("payment_method")
+  razorpayOrderId      String?   @map("razorpay_order_id")
+  razorpayPaymentId    String?   @map("razorpay_payment_id")
+  fulfillmentStatus    String    @default("unfulfilled") @map("fulfillment_status")
+  trackingNumber       String?   @map("tracking_number")
+  trackingUrl          String?   @map("tracking_url")
+  shopifyOrderId       String?   @map("shopify_order_id")
+  shopifyOrderName     String?   @map("shopify_order_name")
+  deliveryStatus       String?   @map("delivery_status")
+  deliveredAt          DateTime? @map("delivered_at")
+  notes                String?
+  source               String    @default("web")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at")
+  codUpfrontPaid       Decimal   @default(0) @map("cod_upfront_paid") @db.Decimal(10, 2)
+  codUpfrontPaymentId  String?   @map("cod_upfront_payment_id")
+  storeCreditAmount    Decimal?  @default(0) @map("store_credit_amount") @db.Decimal(10, 2)
+  paymentFailureReason String?   @map("payment_failure_reason")
 
   @@index([createdAt])
   @@index([paymentStatus, createdAt])
@@ -1961,6 +1962,7 @@ enum Module {
   ADMIN_USERS
   AUDIT_LOG
   ANALYTICS
+  AFFILIATES
 }
 
 model AnalyticsEvent {
@@ -2050,18 +2052,18 @@ model AnalyticsSession {
 }
 
 model WhatsAppSchedulerRun {
-  id                           String   @id @default(cuid())
-  createdAt                    DateTime @default(now()) @map("created_at")
-  campaignsProcessed           Int      @default(0) @map("campaigns_processed")
-  strandedRecipientsRecovered  Int      @default(0) @map("stranded_recipients_recovered")
-  campaignRecipientsRetried    Int      @default(0) @map("campaign_recipients_retried")
-  messagesRetried              Int      @default(0) @map("messages_retried")
-  abandonedCartStep1Sent       Int      @default(0) @map("abandoned_cart_step1_sent")
-  abandonedCartStep2Sent       Int      @default(0) @map("abandoned_cart_step2_sent")
-  abandonedCartStep3Sent       Int      @default(0) @map("abandoned_cart_step3_sent")
-  errorCount                   Int      @default(0) @map("error_count")
-  errors                       String?  @db.Text
-  success                      Boolean  @default(true)
+  id                          String   @id @default(cuid())
+  createdAt                   DateTime @default(now()) @map("created_at")
+  campaignsProcessed          Int      @default(0) @map("campaigns_processed")
+  strandedRecipientsRecovered Int      @default(0) @map("stranded_recipients_recovered")
+  campaignRecipientsRetried   Int      @default(0) @map("campaign_recipients_retried")
+  messagesRetried             Int      @default(0) @map("messages_retried")
+  abandonedCartStep1Sent      Int      @default(0) @map("abandoned_cart_step1_sent")
+  abandonedCartStep2Sent      Int      @default(0) @map("abandoned_cart_step2_sent")
+  abandonedCartStep3Sent      Int      @default(0) @map("abandoned_cart_step3_sent")
+  errorCount                  Int      @default(0) @map("error_count")
+  errors                      String?  @db.Text
+  success                     Boolean  @default(true)
 
   @@map("whatsapp_scheduler_runs")
 }
@@ -2069,14 +2071,14 @@ model WhatsAppSchedulerRun {
 /// Global Multi-Country Storefront — country/currency configuration
 model GlobalStoreCountry {
   id             String   @id @default(cuid())
-  code           String   @unique            // ISO 3166-1 alpha-2: IN, US, GB, CA, AU, AE, DE, ES
-  name           String                       // "United States"
-  currencyCode   String   @map("currency_code")  // ISO 4217: USD, GBP, CAD, AUD, AED, EUR, INR
+  code           String   @unique // ISO 3166-1 alpha-2: IN, US, GB, CA, AU, AE, DE, ES
+  name           String // "United States"
+  currencyCode   String   @map("currency_code") // ISO 4217: USD, GBP, CAD, AUD, AED, EUR, INR
   currencySymbol String   @map("currency_symbol") // $, £, $, $, د.إ, €, ₹
-  locale         String   @default("en-IN")   // BCP 47 locale for Intl.NumberFormat
-  isBase         Boolean  @default(false)     // true only for IN — locks multiplier at 1.0
-  multiplier     Decimal  @default(1.0) @db.Decimal(10, 4)  // e.g. 2.5 — applied to INR base price
-  exchangeRate   Decimal  @db.Decimal(12, 6)  // INR → currencyCode conversion rate, admin-editable
+  locale         String   @default("en-IN") // BCP 47 locale for Intl.NumberFormat
+  isBase         Boolean  @default(false) // true only for IN — locks multiplier at 1.0
+  multiplier     Decimal  @default(1.0) @db.Decimal(10, 4) // e.g. 2.5 — applied to INR base price
+  exchangeRate   Decimal  @db.Decimal(12, 6) // INR → currencyCode conversion rate, admin-editable
   isActive       Boolean  @default(true)
   sortOrder      Int      @default(0)
   updatedAt      DateTime @updatedAt
@@ -2093,4 +2095,214 @@ model GlobalStoreSettings {
   createdAt          DateTime @default(now())
 
   @@map("global_store_settings")
+}
+
+// ─── AFFILIATE / CREATOR PROGRAM ─────────────────────────────
+
+enum AffiliateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum AffiliateReferralStatus {
+  PENDING
+  CONFIRMED
+  REVERSED
+  PAID
+}
+
+enum AffiliateWithdrawalStatus {
+  REQUESTED
+  APPROVED
+  PROCESSING
+  PAID
+  REJECTED
+  FAILED
+}
+
+enum AffiliateLedgerType {
+  CREDIT
+  DEBIT
+  REVERSAL
+  HOLD
+  RELEASE
+}
+
+enum AffiliatePayoutMethod {
+  BANK
+  UPI
+}
+
+model Affiliate {
+  id               String          @id @default(cuid())
+  customerId       String          @unique @map("customer_id")
+  code             String          @unique
+  displayName      String?         @map("display_name")
+  status           AffiliateStatus @default(PENDING)
+  commissionRate   Float           @default(0.10) @map("commission_rate")
+  appliedAt        DateTime        @default(now()) @map("applied_at")
+  approvedAt       DateTime?       @map("approved_at")
+  approvedByUserId String?         @map("approved_by_user_id")
+  rejectedReason   String?         @map("rejected_reason")
+  notes            String?
+
+  totalClicks         Int     @default(0) @map("total_clicks")
+  totalConversions    Int     @default(0) @map("total_conversions")
+  totalRevenue        Float   @default(0) @map("total_revenue")
+  pendingEarnings     Float   @default(0) @map("pending_earnings")
+  availableBalance    Float   @default(0) @map("available_balance")
+  lifetimeEarnings    Float   @default(0) @map("lifetime_earnings")
+  paidOut             Float   @default(0) @map("paid_out")
+  firstWithdrawalDone Boolean @default(false) @map("first_withdrawal_done")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  customer       Customer                 @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  links          AffiliateLink[]
+  clicks         AffiliateClick[]
+  referrals      AffiliateReferral[]
+  payoutAccounts AffiliatePayoutAccount[]
+  withdrawals    AffiliateWithdrawal[]
+  ledger         AffiliateLedgerEntry[]
+
+  @@index([status, createdAt])
+  @@index([code])
+  @@map("affiliates")
+}
+
+model AffiliateLink {
+  id          String   @id @default(cuid())
+  affiliateId String   @map("affiliate_id")
+  slug        String   @unique
+  label       String?
+  targetType  String   @default("STORE") @map("target_type")
+  targetValue String?  @map("target_value")
+  destination String
+  clicks      Int      @default(0)
+  conversions Int      @default(0)
+  revenue     Float    @default(0)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId, createdAt])
+  @@index([slug])
+  @@map("affiliate_links")
+}
+
+model AffiliateClick {
+  id          String   @id @default(cuid())
+  affiliateId String   @map("affiliate_id")
+  linkId      String?  @map("link_id")
+  anonymousId String?  @map("anonymous_id")
+  sessionId   String?  @map("session_id")
+  ipHash      String?  @map("ip_hash")
+  userAgent   String?  @map("user_agent")
+  referrer    String?
+  landingUrl  String?  @map("landing_url")
+  countryCode String?  @map("country_code")
+  city        String?
+  deviceType  String?  @map("device_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId, createdAt])
+  @@index([linkId, createdAt])
+  @@index([anonymousId, affiliateId, createdAt])
+  @@map("affiliate_clicks")
+}
+
+model AffiliateReferral {
+  id               String                  @id @default(cuid())
+  affiliateId      String                  @map("affiliate_id")
+  linkId           String?                 @map("link_id")
+  orderId          String                  @unique @map("order_id")
+  customerId       String                  @map("customer_id")
+  clickId          String?                 @map("click_id")
+  orderTotal       Float                   @map("order_total")
+  eligibleAmount   Float                   @map("eligible_amount")
+  commissionRate   Float                   @map("commission_rate")
+  commissionAmount Float                   @map("commission_amount")
+  status           AffiliateReferralStatus @default(PENDING)
+  confirmedAt      DateTime?               @map("confirmed_at")
+  reversedAt       DateTime?               @map("reversed_at")
+  reversedReason   String?                 @map("reversed_reason")
+  holdUntil        DateTime?               @map("hold_until")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId, status, createdAt])
+  @@index([status, holdUntil])
+  @@index([customerId])
+  @@map("affiliate_referrals")
+}
+
+model AffiliatePayoutAccount {
+  id                String                @id @default(cuid())
+  affiliateId       String                @map("affiliate_id")
+  method            AffiliatePayoutMethod @default(BANK)
+  accountHolderName String                @map("account_holder_name")
+  accountNumberEnc  String?               @map("account_number_enc")
+  ifscEnc           String?               @map("ifsc_enc")
+  bankName          String?               @map("bank_name")
+  upiIdEnc          String?               @map("upi_id_enc")
+  last4             String?
+  isDefault         Boolean               @default(true) @map("is_default")
+  isVerified        Boolean               @default(false) @map("is_verified")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId])
+  @@map("affiliate_payout_accounts")
+}
+
+model AffiliateWithdrawal {
+  id               String                    @id @default(cuid())
+  affiliateId      String                    @map("affiliate_id")
+  payoutAccountId  String?                   @map("payout_account_id")
+  amount           Float
+  status           AffiliateWithdrawalStatus @default(REQUESTED)
+  requestedAt      DateTime                  @default(now()) @map("requested_at")
+  reviewedByUserId String?                   @map("reviewed_by_user_id")
+  reviewedAt       DateTime?                 @map("reviewed_at")
+  rejectionReason  String?                   @map("rejection_reason")
+  payoutProvider   String?                   @map("payout_provider")
+  payoutRef        String?                   @map("payout_ref")
+  paidAt           DateTime?                 @map("paid_at")
+  idempotencyKey   String                    @unique @map("idempotency_key")
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  updatedAt        DateTime                  @updatedAt @map("updated_at")
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId, status, requestedAt])
+  @@index([status, requestedAt])
+  @@map("affiliate_withdrawals")
+}
+
+model AffiliateLedgerEntry {
+  id           String              @id @default(cuid())
+  affiliateId  String              @map("affiliate_id")
+  type         AffiliateLedgerType
+  amount       Float
+  balanceAfter Float               @map("balance_after")
+  referralId   String?             @map("referral_id")
+  withdrawalId String?             @map("withdrawal_id")
+  reason       String?
+  createdAt    DateTime            @default(now()) @map("created_at")
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([affiliateId, createdAt])
+  @@map("affiliate_ledger_entries")
 }

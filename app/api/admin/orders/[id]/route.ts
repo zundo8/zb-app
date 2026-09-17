@@ -637,6 +637,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       } catch (skuErr) {
         console.error('[Admin Order PATCH] SKU restoration on cancel failed:', skuErr);
       }
+
+      // Revert affiliate referral
+      try {
+        const { reverseReferral } = await import('@/lib/affiliate/earnings');
+        await reverseReferral(id, 'cancelled_by_admin');
+      } catch (affErr: any) {
+        console.warn('[Admin Order PATCH] Affiliate reversal warning:', affErr.message);
+      }
     }
 
     // Send push notification if status changed

@@ -601,6 +601,14 @@ export async function POST(req: Request) {
       console.error('[Checkout Complete] Shopify order sync error (will be retried):', syncErr.message);
     }
 
+    // ─── AFFILIATE / CREATOR ATTRIBUTION ───
+    try {
+      const { attributeOrder } = await import('@/lib/affiliate/attribution');
+      await attributeOrder({ orderId: localOrder.id, req });
+    } catch (affErr: any) {
+      console.warn('[Checkout Complete] Affiliate attribution failed non-fatally:', affErr.message);
+    }
+
     // ─── DEBIT STORE CREDITS FROM CUSTOMER WALLET ───
     if (parsedStoreCredit > 0) {
       try {

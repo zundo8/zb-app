@@ -612,6 +612,14 @@ export async function POST(req: Request) {
        });
     }
 
+    // 5. Affiliate / Creator Attribution
+    try {
+      const { attributeOrder } = await import('@/lib/affiliate/attribution');
+      await attributeOrder({ orderId: localOrder.id, req });
+    } catch (affErr: any) {
+      console.warn('[App API] Affiliate attribution failed non-fatally:', affErr.message);
+    }
+
     return NextResponse.json({ success: true, order: localOrder }, { headers: corsHeaders });
   } catch (error: any) {
     console.error('[App API] Create order error:', error.message);

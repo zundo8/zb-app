@@ -272,8 +272,11 @@ export async function POST(req: NextRequest) {
         if (restoredCount > 0) {
           console.log(`[Webhook] Restored ${restoredCount} SKU(s) for RTO order ${shipment.orderId}`);
         }
+
+        const { reverseReferral } = await import('@/lib/affiliate/earnings');
+        await reverseReferral(shipment.orderId, 'delhivery_rto');
       } catch (skuErr) {
-        console.error(`[Webhook] SKU restoration on RTO failed:`, skuErr);
+        console.error(`[Webhook] SKU restoration / affiliate reversal on RTO failed:`, skuErr);
       }
     }
 
