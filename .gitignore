@@ -44,6 +44,8 @@ next-env.d.ts
 prisma/dev.db
 *.db
 *.csv
+!app/feed.csv
+!app/feed.csv/**
 digitalocean-app-spec.yaml
 scratch*.js
 
