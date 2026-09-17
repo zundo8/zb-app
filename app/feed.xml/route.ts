@@ -24,8 +24,8 @@ import {
 import prisma from '@/lib/db';
 import { getGoogleCategory } from '@/lib/google-product-categories';
 
+export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const revalidate = 900; // 15 minutes
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com').replace(/\/+$/, '');
 const BRAND = 'Zica Bella';
@@ -244,7 +244,9 @@ export async function GET(): Promise<Response> {
     // Generate items — one per variant
     const items: string[] = [];
     for (const product of feedProducts) {
+      if (!product.variants || !Array.isArray(product.variants)) continue;
       for (const variant of product.variants) {
+        if (!variant) continue;
         items.push(generateItemXml(product, variant));
       }
     }

@@ -18,8 +18,8 @@ import { fetchAllProducts, type ShopifyProduct } from '@/lib/shopify-admin';
 import prisma from '@/lib/db';
 import { getGoogleCategory } from '@/lib/google-product-categories';
 
+export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export const revalidate = 900; // 15 minutes
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://zicabella.com').replace(/\/+$/, '');
 const BRAND = 'Zica Bella';
@@ -186,7 +186,9 @@ export async function GET(): Promise<Response> {
 
     const rows: string[] = [HEADER.join(',')];
     for (const product of feedProducts) {
+      if (!product.variants || !Array.isArray(product.variants)) continue;
       for (const variant of product.variants) {
+        if (!variant) continue;
         rows.push(buildRow(product, variant));
       }
     }
