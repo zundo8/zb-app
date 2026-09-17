@@ -119,7 +119,7 @@ function generateItemXml(
 
   const productId = String(product.id);
   const variantId = String(variant.id);
-  const itemId = `${productId}_${variantId}`;
+  const itemId = variantId; // MUST equal the pixel content_id (bare Shopify variant id) for catalogue matching
 
   const variantTitle = variant.title && variant.title !== 'Default Title' ? variant.title : '';
   const fullTitle = variantTitle ? `${product.title} - ${variantTitle}` : product.title;
@@ -134,8 +134,12 @@ function generateItemXml(
     .slice(1, 11) // Max 10 additional images per Google spec
     .map(img => img.src);
 
-  // Availability — from Shopify variant inventory
-  const inStock = (variant.inventory_quantity ?? 0) > 0;
+  // Availability — from Shopify variant inventory.
+  // If inventory is NOT tracked (inventory_management is null/empty), the
+  // variant is always purchasable → treat as in_stock. Only mark
+  // out_of_stock when inventory IS tracked and quantity <= 0.
+  const inventoryTracked = !!variant.inventory_management;
+  const inStock = inventoryTracked ? (variant.inventory_quantity ?? 0) > 0 : true;
   const availability = inStock ? 'in_stock' : 'out_of_stock';
 
   // Pricing
@@ -215,7 +219,7 @@ export async function GET(): Promise<Response> {
     // Parallel fetch: Shopify products + Prisma exclusions
     // Only 1 Shopify API call (fetchAllProducts) + 1 cheap DB query
     const [allProducts, excludedProductIds] = await Promise.all([
-      fetchAllProducts(250),
+      fetchAllProducts(250, { allowFallback: false }),
       getExcludedProductIds(),
     ]);
 
@@ -226,13 +230,12 @@ export async function GET(): Promise<Response> {
       // Must be active
       if (product.status !== 'active') return false;
 
-      // Must not be excluded by includeInFeed flag
+      // Must not be explicitly excluded via the includeInFeed toggle
       if (excludedProductIds.has(String(product.id))) return false;
 
-      // Must have at least one variant with stock > 0
-      const hasStock = product.variants.some(v => (v.inventory_quantity ?? 0) > 0);
-      if (!hasStock) return false;
-
+      // NOTE: do NOT exclude out-of-stock or untracked products.
+      // They belong in the catalogue with g:availability = out_of_stock so
+      // (a) the full catalogue is represented and (b) pixel events still match.
       return true;
     });
 

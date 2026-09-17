@@ -1400,7 +1400,11 @@ export async function fetchProducts(limit = 250): Promise<ShopifyProduct[]> {
   }
 }
 
-export async function fetchAllProducts(limit = 250): Promise<ShopifyProduct[]> {
+export async function fetchAllProducts(
+  limit = 250,
+  opts?: { allowFallback?: boolean },
+): Promise<ShopifyProduct[]> {
+  const allowFallback = opts?.allowFallback ?? true;
   try {
     const products = await shopifyFetchAll<ShopifyProduct>('products.json', {
       limit: String(limit),
@@ -1408,10 +1412,11 @@ export async function fetchAllProducts(limit = 250): Promise<ShopifyProduct[]> {
     if (products && Array.isArray(products) && products.length > 0) {
       return products;
     }
-    return FALLBACK_PRODUCTS;
+    console.warn('[Shopify Admin] fetchAllProducts returned 0 products');
+    return allowFallback ? FALLBACK_PRODUCTS : [];
   } catch (err: any) {
     console.error('[Shopify Admin] fetchAllProducts error:', err.message);
-    return FALLBACK_PRODUCTS;
+    return allowFallback ? FALLBACK_PRODUCTS : [];
   }
 }
 
